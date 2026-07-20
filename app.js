@@ -309,43 +309,41 @@ const app = createApp({
       canvas.width = W;
       canvas.height = H;
 
-      // 先绘制背景图
+      // 绘制背景图
       if (cardBgImage) {
         ctx.drawImage(cardBgImage, 0, 0, W, H);
       } else {
-        // 备用：纯色背景
         ctx.fillStyle = '#FDF0E4';
         ctx.fillRect(0, 0, W, H);
       }
 
-      // 在左侧空白区域叠加文字
-      // 根据背景图，左侧白色区域大约在 x:80-820, y:80-1000
-      const textX = 100;
-      let textY = 200;
+      // 统一字体
+      const fontSize = 32;
+      const lineHeight = 60;
+      const fontStr = fontSize + 'px "Microsoft YaHei", sans-serif';
 
       // 称呼
       ctx.fillStyle = '#5C3D2E';
-      ctx.font = 'bold 36px "Microsoft YaHei", sans-serif';
+      ctx.font = fontStr;
       ctx.textAlign = 'left';
-      ctx.fillText(`亲爱的 ${emp.name}`, textX, textY);
-      textY += 60;
+      ctx.fillText('亲爱的' + emp.name, 120, 430);
 
       // 文案正文 - 自动换行
       ctx.fillStyle = '#6B4C3B';
-      ctx.font = '28px "Microsoft YaHei", sans-serif';
+      ctx.font = fontStr;
       const wishText = emp.wish || '祝你生日快乐！';
-      const wishLines = wrapText(ctx, wishText, 680);
+      const wishLines = wrapText(ctx, wishText, 600);
+      let ty = 500;
       wishLines.forEach(line => {
-        ctx.fillText(line, textX, textY);
-        textY += 46;
+        ctx.fillText(line, 120, ty);
+        ty += lineHeight;
       });
 
       // 落款
-      textY += 20;
       ctx.fillStyle = '#5C3D2E';
-      ctx.font = '28px "Microsoft YaHei", sans-serif';
+      ctx.font = fontStr;
       ctx.textAlign = 'right';
-      ctx.fillText('银泰温暖团队', 800, textY);
+      ctx.fillText('银泰温暖团队', 700, 810);
       ctx.textAlign = 'left';
     }
 
@@ -418,26 +416,29 @@ const app = createApp({
           offCtx.fillStyle = '#FDF0E4';
           offCtx.fillRect(0, 0, 1920, 1080);
         }
-        // 叠加文字
-        const textX = 100;
-        let textY = 200;
+        // 叠加文字（与 drawCard 一致）
+        const fontSize = 32;
+        const lineHeight = 60;
+        const fontStr = fontSize + 'px "Microsoft YaHei", sans-serif';
+
         offCtx.fillStyle = '#5C3D2E';
-        offCtx.font = 'bold 36px "Microsoft YaHei", sans-serif';
+        offCtx.font = fontStr;
         offCtx.textAlign = 'left';
-        offCtx.fillText(`亲爱的 ${emp.name}`, textX, textY);
-        textY += 60;
+        offCtx.fillText('亲爱的' + emp.name, 120, 430);
+
         offCtx.fillStyle = '#6B4C3B';
-        offCtx.font = '28px "Microsoft YaHei", sans-serif';
-        const wishLines = wrapText(offCtx, emp.wish, 680);
+        offCtx.font = fontStr;
+        const wishLines = wrapText(offCtx, emp.wish, 600);
+        let ty = 500;
         wishLines.forEach(line => {
-          offCtx.fillText(line, textX, textY);
-          textY += 46;
+          offCtx.fillText(line, 120, ty);
+          ty += lineHeight;
         });
-        textY += 20;
+
         offCtx.fillStyle = '#5C3D2E';
-        offCtx.font = '28px "Microsoft YaHei", sans-serif';
+        offCtx.font = fontStr;
         offCtx.textAlign = 'right';
-        offCtx.fillText('银泰温暖团队', 800, textY);
+        offCtx.fillText('银泰温暖团队', 700, 810);
         offCtx.textAlign = 'left';
 
         // 下载
