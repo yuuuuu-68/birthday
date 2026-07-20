@@ -1,0 +1,362 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>银泰生日祝福文案系统</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/index.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 登录页 -->
+    <div v-if="!isLoggedIn" class="login-page">
+      <div class="login-card">
+        <h1 class="login-title">银泰生日祝福文案系统</h1>
+        <p class="login-subtitle">Happy Birthday Wish System</p>
+        <el-form :model="loginForm" class="login-form">
+          <el-form-item>
+            <el-select v-model="loginForm.role" placeholder="选择角色" style="width:100%">
+              <el-option label="管理员" value="admin"></el-option>
+              <el-option label="领导" value="leader"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" show-password @keyup.enter="handleLogin"></el-input>
+          </el-form-item>
+          <el-button type="primary" style="width:100%" @click="handleLogin" :loading="loginLoading">登 录</el-button>
+        </el-form>
+        <p class="login-hint">默认密码：admin123（管理员）/ leader123（领导）</p>
+      </div>
+    </div>
+
+    <!-- 主界面 -->
+    <div v-else class="main-layout">
+      <!-- 侧边栏 -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <h2>生日祝福系统</h2>
+          <span class="role-badge">{{ currentUserRole === 'admin' ? '管理员' : '领导' }}</span>
+        </div>
+        <el-menu :default-active="currentPage" @select="currentPage = $event" class="sidebar-menu">
+          <template v-if="currentUserRole === 'admin'">
+            <el-menu-item index="dashboard">👥 员工管理</el-menu-item>
+            <el-menu-item index="generate">✏️ 文案生成</el-menu-item>
+            <el-menu-item index="library">📚 文案库管理</el-menu-item>
+            <el-menu-item index="sync">🔄 同步审核结果</el-menu-item>
+          </template>
+          <template v-if="currentUserRole === 'leader'">
+            <el-menu-item index="review">📋 文案审核</el-menu-item>
+          </template>
+        </el-menu>
+        <div class="sidebar-footer">
+          <el-button text @click="handleLogout">退出登录</el-button>
+        </div>
+      </div>
+
+      <!-- 内容区 -->
+      <div class="content-area">
+        <!-- 管理员 - 员工管理 -->
+        <div v-if="currentPage === 'dashboard'" class="page-content">
+          <div class="page-header">
+            <h2>员工信息管理</h2>
+            <div class="page-actions">
+              <el-button type="primary" @click="showAddEmployeeDialog">添加员工</el-button>
+              <el-upload action="#" :auto-upload="false" :on-change="importEmployees" accept=".xlsx,.xls" :show-file-list="false">
+                <el-button>导入Excel</el-button>
+              </el-upload>
+              <el-button @click="exportEmployees">导出Excel</el-button>
+            </div>
+          </div>
+          <el-table :data="employees" border stripe style="width:100%">
+            <el-table-column prop="name" label="姓名" width="120"></el-table-column>
+            <el-table-column prop="gender" label="性别" width="80">
+              <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+            </el-table-column>
+            <el-table-column prop="birthMonth" label="生日月份" width="100">
+              <template #default="{ row }">{{ row.birthMonth }}月</template>
+            </el-table-column>
+            <el-table-column prop="department" label="部门" width="150"></el-table-column>
+            <el-table-column prop="wishStatus" label="文案状态" width="120">
+              <template #default="{ row }">
+                <el-tag :type="row.wishStatus === 'approved' ? 'success' : row.wishStatus === 'modified' ? 'warning' : 'info'" size="small">
+                  {{ row.wishStatus === 'approved' ? '已通过' : row.wishStatus === 'modified' ? '已修改' : '待生成' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="150">
+              <template #default="{ row, $index }">
+                <el-button size="small" @click="editEmployee($index)">编辑</el-button>
+                <el-button size="small" type="danger" @click="deleteEmployee($index)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <!-- 管理员 - 文案生成 -->
+        <div v-if="currentPage === 'generate'" class="page-content">
+          <div class="page-header">
+            <h2>文案生成与贺卡预览</h2>
+            <div class="page-actions">
+              <el-button type="primary" @click="batchGenerateWishes" :disabled="employees.length === 0">批量生成文案</el-button>
+              <el-button @click="exportWishesExcel">导出文案Excel</el-button>
+            </div>
+          </div>
+          <el-table :data="employees.filter(e => e.wish)" border stripe style="width:100%">
+            <el-table-column prop="name" label="姓名" width="100"></el-table-column>
+            <el-table-column prop="gender" label="性别" width="70">
+              <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+            </el-table-column>
+            <el-table-column prop="wish" label="祝福文案" min-width="300">
+              <template #default="{ row }">
+                <el-input type="textarea" v-model="row.wish" :rows="3" @change="saveData"></el-input>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="200">
+              <template #default="{ row }">
+                <el-button size="small" @click="regenerateWish(row)">重新生成</el-button>
+                <el-button size="small" @click="previewCard(row)">预览贺卡</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-empty v-if="employees.filter(e => e.wish).length === 0" description="暂无生成的文案，请先添加员工并点击批量生成"></el-empty>
+        </div>
+
+        <!-- 管理员 - 文案库管理 -->
+        <div v-if="currentPage === 'library'" class="page-content">
+          <div class="page-header">
+            <h2>文案库管理</h2>
+            <div class="page-actions">
+              <el-button type="primary" @click="showAddWishTemplate = true">新增文案</el-button>
+              <el-upload action="#" :auto-upload="false" :on-change="importWishLibrary" accept=".xlsx,.xls" :show-file-list="false">
+                <el-button>导入文案库</el-button>
+              </el-upload>
+              <el-button @click="exportWishLibrary">导出文案库</el-button>
+            </div>
+          </div>
+          <div class="filter-bar">
+            <el-select v-model="libraryFilter.gender" placeholder="性别筛选" clearable style="width:120px" @change="filterLibrary">
+              <el-option label="男性" value="male"></el-option>
+              <el-option label="女性" value="female"></el-option>
+              <el-option label="通用" value="all"></el-option>
+            </el-select>
+            <el-select v-model="libraryFilter.season" placeholder="季节筛选" clearable style="width:120px" @change="filterLibrary">
+              <el-option label="春季(3-5月)" value="spring"></el-option>
+              <el-option label="夏季(6-8月)" value="summer"></el-option>
+              <el-option label="秋季(9-11月)" value="autumn"></el-option>
+              <el-option label="冬季(12-2月)" value="winter"></el-option>
+              <el-option label="通用" value="all"></el-option>
+            </el-select>
+            <el-input v-model="libraryFilter.keyword" placeholder="搜索关键词" clearable style="width:200px" @input="filterLibrary"></el-input>
+          </div>
+          <el-table :data="filteredLibrary" border stripe style="width:100%">
+            <el-table-column prop="content" label="文案内容" min-width="300">
+              <template #default="{ row }">
+                <el-input type="textarea" v-model="row.content" :rows="2" @change="saveData"></el-input>
+              </template>
+            </el-table-column>
+            <el-table-column prop="gender" label="适用性别" width="100">
+              <template #default="{ row }">
+                <el-select v-model="row.gender" size="small" @change="saveData">
+                  <el-option label="男性" value="male"></el-option>
+                  <el-option label="女性" value="female"></el-option>
+                  <el-option label="通用" value="all"></el-option>
+                </el-select>
+              </template>
+            </el-table-column>
+            <el-table-column prop="season" label="适用季节" width="120">
+              <template #default="{ row }">
+                <el-select v-model="row.season" size="small" @change="saveData">
+                  <el-option label="春季" value="spring"></el-option>
+                  <el-option label="夏季" value="summer"></el-option>
+                  <el-option label="秋季" value="autumn"></el-option>
+                  <el-option label="冬季" value="winter"></el-option>
+                  <el-option label="通用" value="all"></el-option>
+                </el-select>
+              </template>
+            </el-table-column>
+            <el-table-column prop="usageCount" label="使用次数" width="90"></el-table-column>
+            <el-table-column prop="source" label="来源" width="100"></el-table-column>
+            <el-table-column label="操作" width="100">
+              <template #default="{ row, $index }">
+                <el-button size="small" type="danger" @click="deleteWishTemplate($index)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div class="library-stats">
+            文案库共 {{ wishLibrary.length }} 条模板 | 筛选后 {{ filteredLibrary.length }} 条
+          </div>
+        </div>
+
+        <!-- 管理员 - 同步页 -->
+        <div v-if="currentPage === 'sync'" class="page-content">
+          <div class="page-header">
+            <h2>同步领导审核结果</h2>
+            <div class="page-actions">
+              <el-upload action="#" :auto-upload="false" :on-change="importLeaderReview" accept=".xlsx,.xls" :show-file-list="false">
+                <el-button type="primary">导入领导审核结果</el-button>
+              </el-upload>
+              <el-button @click="exportFinalExcel">导出最终版Excel</el-button>
+            </div>
+          </div>
+          <el-table :data="employees.filter(e => e.wish)" border stripe style="width:100%">
+            <el-table-column prop="name" label="姓名" width="100"></el-table-column>
+            <el-table-column prop="wish" label="当前文案" min-width="250"></el-table-column>
+            <el-table-column prop="wishStatus" label="状态" width="120">
+              <template #default="{ row }">
+                <el-tag :type="row.wishStatus === 'approved' ? 'success' : row.wishStatus === 'modified' ? 'warning' : 'info'" size="small">
+                  {{ row.wishStatus === 'approved' ? '已通过' : row.wishStatus === 'modified' ? '领导已修改' : '待审核' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="modifySource" label="修改方式" width="120">
+              <template #default="{ row }">{{ row.modifySource || '-' }}</template>
+            </el-table-column>
+          </el-table>
+          <el-empty v-if="employees.filter(e => e.wish).length === 0" description="暂无文案数据"></el-empty>
+        </div>
+
+        <!-- 领导 - 审核页 -->
+        <div v-if="currentPage === 'review'" class="page-content">
+          <div class="page-header">
+            <h2>文案审核</h2>
+            <div class="page-actions">
+              <el-upload action="#" :auto-upload="false" :on-change="importWishesForReview" accept=".xlsx,.xls" :show-file-list="false">
+                <el-button>导入文案</el-button>
+              </el-upload>
+              <el-button type="primary" @click="exportReviewResult">导出审核结果</el-button>
+            </div>
+          </div>
+          <el-table :data="reviewEmployees" border stripe style="width:100%">
+            <el-table-column prop="name" label="姓名" width="100"></el-table-column>
+            <el-table-column prop="gender" label="性别" width="70">
+              <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+            </el-table-column>
+            <el-table-column prop="wish" label="祝福文案" min-width="300">
+              <template #default="{ row }">
+                <el-input type="textarea" v-model="row.wish" :rows="3" @change="onWishEdit(row)"></el-input>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="220">
+              <template #default="{ row }">
+                <el-button size="small" @click="showWishPicker(row)">从文案库替换</el-button>
+                <el-button size="small" type="success" @click="approveWish(row)">通过</el-button>
+              </template>
+            </el-table-column>
+            <el-table-column prop="wishStatus" label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="row.wishStatus === 'approved' ? 'success' : 'warning'" size="small">
+                  {{ row.wishStatus === 'approved' ? '已通过' : '待审核' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-empty v-if="reviewEmployees.length === 0" description="暂无待审核文案，请先导入管理员生成的文案Excel"></el-empty>
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加/编辑员工弹窗 -->
+    <el-dialog v-model="showAddEmployee" :title="editingEmployeeIndex >= 0 ? '编辑员工' : '添加员工'" width="450px">
+      <el-form :model="employeeForm" label-width="80px">
+        <el-form-item label="姓名">
+          <el-input v-model="employeeForm.name" placeholder="请输入姓名"></el-input>
+        </el-form-item>
+        <el-form-item label="性别">
+          <el-radio-group v-model="employeeForm.gender">
+            <el-radio value="male">男</el-radio>
+            <el-radio value="female">女</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="生日月份">
+          <el-input-number v-model="employeeForm.birthMonth" :min="1" :max="12"></el-input-number>
+        </el-form-item>
+        <el-form-item label="部门">
+          <el-input v-model="employeeForm.department" placeholder="选填"></el-input>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showAddEmployee = false">取消</el-button>
+        <el-button type="primary" @click="saveEmployee">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 新增文案模板弹窗 -->
+    <el-dialog v-model="showAddWishTemplate" title="新增文案模板" width="550px">
+      <el-form :model="wishTemplateForm" label-width="80px">
+        <el-form-item label="文案内容">
+          <el-input type="textarea" v-model="wishTemplateForm.content" :rows="4" placeholder="请输入文案正文（不含姓名和落款）"></el-input>
+        </el-form-item>
+        <el-form-item label="适用性别">
+          <el-select v-model="wishTemplateForm.gender" style="width:100%">
+            <el-option label="男性" value="male"></el-option>
+            <el-option label="女性" value="female"></el-option>
+            <el-option label="通用" value="all"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="适用季节">
+          <el-select v-model="wishTemplateForm.season" style="width:100%">
+            <el-option label="春季(3-5月)" value="spring"></el-option>
+            <el-option label="夏季(6-8月)" value="summer"></el-option>
+            <el-option label="秋季(9-11月)" value="autumn"></el-option>
+            <el-option label="冬季(12-2月)" value="winter"></el-option>
+            <el-option label="通用" value="all"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-input v-model="wishTemplateForm.tags" placeholder="如：诗意,温馨,事业（逗号分隔）"></el-input>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showAddWishTemplate = false">取消</el-button>
+        <el-button type="primary" @click="saveWishTemplate">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 贺卡预览弹窗 -->
+    <el-dialog v-model="showCardPreview" title="贺卡预览" width="900px">
+      <div class="card-preview-container">
+        <canvas ref="cardCanvas" width="1920" height="1080" style="width:100%; border:1px solid #eee; border-radius:8px;"></canvas>
+      </div>
+      <template #footer>
+        <el-button @click="showCardPreview = false">关闭</el-button>
+        <el-button type="primary" @click="downloadCard">下载贺卡图片</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 文案库选择弹窗（领导替换用） -->
+    <el-dialog v-model="showWishPickerDialog" title="从文案库选择替换" width="700px">
+      <div class="filter-bar" style="margin-bottom:15px">
+        <el-select v-model="pickerFilter.gender" placeholder="性别" clearable style="width:120px">
+          <el-option label="男性" value="male"></el-option>
+          <el-option label="女性" value="female"></el-option>
+          <el-option label="通用" value="all"></el-option>
+        </el-select>
+        <el-select v-model="pickerFilter.season" placeholder="季节" clearable style="width:120px">
+          <el-option label="春季" value="spring"></el-option>
+          <el-option label="夏季" value="summer"></el-option>
+          <el-option label="秋季" value="autumn"></el-option>
+          <el-option label="冬季" value="winter"></el-option>
+          <el-option label="通用" value="all"></el-option>
+        </el-select>
+      </div>
+      <el-table :data="getPickerWishes()" border stripe style="width:100%" max-height="400">
+        <el-table-column prop="content" label="文案内容" min-width="300"></el-table-column>
+        <el-table-column prop="usageCount" label="使用次数" width="90"></el-table-column>
+        <el-table-column label="操作" width="80">
+          <template #default="{ row }">
+            <el-button size="small" type="primary" @click="replaceFromLibrary(row)">选用</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/index.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/locale/zh-cn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="wishTemplates.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
