@@ -340,7 +340,7 @@
     </el-dialog>
 
     <!-- 贺卡预览弹窗 -->
-    <el-dialog v-model="showCardPreview" title="贺卡预览" width="900px">
+    <el-dialog v-model="showCardPreview" title="贺卡预览" width="900px" destroy-on-close>
       <div class="card-preview-container">
         <canvas ref="cardCanvas" width="1920" height="1080" style="width:100%; border:1px solid #eee; border-radius:8px;"></canvas>
       </div>
