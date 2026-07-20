@@ -2,20 +2,20 @@ const { createApp, ref, reactive, computed, onMounted, nextTick } = Vue;
 
 const app = createApp({
   setup() {
-    // ===== 状态管理 =====
+    // ===== 状态变量 =====
     const isLoggedIn = ref(false);
     const currentUserRole = ref('');
     const loginLoading = ref(false);
     const currentPage = ref('dashboard');
     const loginForm = reactive({ role: 'admin', password: '' });
 
-    // 默认密码
     const DEFAULT_PASSWORDS = { admin: 'admin123', leader: 'leader123' };
 
     // 数据
     const employees = ref([]);
     const wishLibrary = ref([]);
     const reviewEmployees = ref([]);
+    const finalReviewData = ref([]);
 
     // 弹窗状态
     const showAddEmployee = ref(false);
@@ -26,14 +26,19 @@ const app = createApp({
     const currentPreviewEmployee = ref(null);
     const currentPickerEmployee = ref(null);
     const cardCanvas = ref(null);
+    const exportCardsLoading = ref(false);
 
     // 表单
-    const employeeForm = reactive({ name: '', gender: 'female', birthMonth: 1, department: '' });
+    const employeeForm = reactive({ name: '', gender: 'female', birthMonth: 1, birthDay: 1, department: '' });
     const wishTemplateForm = reactive({ content: '', gender: 'all', season: 'all', tags: '' });
 
     // 筛选
     const libraryFilter = reactive({ gender: '', season: '', keyword: '' });
     const pickerFilter = reactive({ gender: '', season: '' });
+
+    // 领导审核 - 多选
+    const selectedRows = ref([]);
+    const allSelected = ref(false);
 
     // ===== 初始化 =====
     onMounted(() => {
@@ -41,6 +46,10 @@ const app = createApp({
       if (wishLibrary.value.length === 0) {
         wishLibrary.value = JSON.parse(JSON.stringify(DEFAULT_WISH_LIBRARY));
         saveData();
+      }
+      // 领导登录时自动加载审核数据
+      if (isLoggedIn.value && currentUserRole.value === 'leader') {
+        loadReviewData();
       }
     });
 
@@ -57,6 +66,9 @@ const app = createApp({
           isLoggedIn.value = true;
           currentUserRole.value = session.role;
         }
+        // 加载领导审核结果
+        const savedFinal = localStorage.getItem('bws_finalReviewData');
+        if (savedFinal) finalReviewData.value = JSON.parse(savedFinal);
       } catch (e) {
         console.error('加载数据失败', e);
       }
@@ -82,6 +94,9 @@ const app = createApp({
           localStorage.setItem('bws_session', JSON.stringify({ role: loginForm.role }));
           currentPage.value = loginForm.role === 'admin' ? 'dashboard' : 'review';
           ElementPlus.ElMessage.success('登录成功');
+          if (loginForm.role === 'leader') {
+            loadReviewData();
+          }
         } else {
           ElementPlus.ElMessage.error('密码错误');
         }
@@ -94,19 +109,26 @@ const app = createApp({
       currentUserRole.value = '';
       localStorage.removeItem('bws_session');
       loginForm.password = '';
+      reviewEmployees.value = [];
+      selectedRows.value = [];
+      allSelected.value = false;
     }
 
     // ===== 员工管理 =====
     function showAddEmployeeDialog() {
       editingEmployeeIndex.value = -1;
-      Object.assign(employeeForm, { name: '', gender: 'female', birthMonth: 1, department: '' });
+      Object.assign(employeeForm, { name: '', gender: 'female', birthMonth: 1, birthDay: 1, department: '' });
       showAddEmployee.value = true;
     }
 
     function editEmployee(index) {
       editingEmployeeIndex.value = index;
       const emp = employees.value[index];
-      Object.assign(employeeForm, { name: emp.name, gender: emp.gender, birthMonth: emp.birthMonth, department: emp.department || '' });
+      Object.assign(employeeForm, {
+        name: emp.name, gender: emp.gender,
+        birthMonth: emp.birthMonth, birthDay: emp.birthDay || 1,
+        department: emp.department || ''
+      });
       showAddEmployee.value = true;
     }
 
@@ -119,6 +141,7 @@ const app = createApp({
         name: employeeForm.name.trim(),
         gender: employeeForm.gender,
         birthMonth: employeeForm.birthMonth,
+        birthDay: employeeForm.birthDay || 1,
         department: employeeForm.department.trim(),
         wish: '',
         wishStatus: 'pending',
@@ -137,7 +160,7 @@ const app = createApp({
     }
 
     function deleteEmployee(index) {
-      ElementPlus.ElMessageBox.confirm('确定删除该员工？', '提示', { type: 'warning' }).then(() => {
+      ElementPlus.ElMessageBox.confirm('确定删除该员工吗？', '提示', { type: 'warning' }).then(() => {
         employees.value.splice(index, 1);
         saveData();
         ElementPlus.ElMessage.success('删除成功');
@@ -154,7 +177,6 @@ const app = createApp({
 
     function generateWishForEmployee(emp) {
       const season = getSeason(emp.birthMonth);
-      // 筛选匹配的文案：性别匹配 + 季节匹配（或通用）
       let candidates = wishLibrary.value.filter(w => {
         const genderMatch = w.gender === emp.gender || w.gender === 'all';
         const seasonMatch = w.season === season || w.season === 'all';
@@ -166,9 +188,7 @@ const app = createApp({
       if (candidates.length === 0) {
         candidates = wishLibrary.value;
       }
-      // 优先选择使用次数少的
       candidates.sort((a, b) => a.usageCount - b.usageCount);
-      // 从前50%中随机选
       const topHalf = candidates.slice(0, Math.max(1, Math.ceil(candidates.length / 2)));
       const selected = topHalf[Math.floor(Math.random() * topHalf.length)];
       selected.usageCount++;
@@ -195,7 +215,28 @@ const app = createApp({
       ElementPlus.ElMessage.success('已重新生成');
     }
 
-    // ===== 文案库管理 =====
+    // ===== 提交给领导 =====
+    function submitToLeader() {
+      const wishEmployees = employees.value.filter(e => e.wish);
+      if (wishEmployees.length === 0) {
+        ElementPlus.ElMessage.warning('没有可提交的文案');
+        return;
+      }
+      const reviewData = wishEmployees.map(e => ({
+        name: e.name,
+        gender: e.gender,
+        birthMonth: e.birthMonth,
+        birthDay: e.birthDay || 1,
+        department: e.department || '',
+        wish: e.wish,
+        wishStatus: 'pending',
+        modifySource: ''
+      }));
+      localStorage.setItem('bws_leaderReviewData', JSON.stringify(reviewData));
+      ElementPlus.ElMessage.success(`已提交 ${reviewData.length} 条文案给领导审核`);
+    }
+
+    // ===== 文案库 =====
     const filteredLibrary = computed(() => {
       return wishLibrary.value.filter(w => {
         if (libraryFilter.gender && w.gender !== libraryFilter.gender && w.gender !== 'all') return false;
@@ -238,11 +279,24 @@ const app = createApp({
       }
     }
 
-    // ===== 贺卡生成 (Canvas) =====
+    // ===== 贺卡绘制 (Canvas) - 使用背景图 =====
+    let cardBgImage = null;
+    function loadCardBgImage() {
+      return new Promise((resolve) => {
+        if (cardBgImage && cardBgImage.complete) { resolve(cardBgImage); return; }
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => { cardBgImage = img; resolve(img); };
+        img.onerror = () => { resolve(null); };
+        img.src = './card-bg.png';
+      });
+    }
+
     function previewCard(emp) {
       currentPreviewEmployee.value = emp;
       showCardPreview.value = true;
-      nextTick(() => {
+      nextTick(async () => {
+        await loadCardBgImage();
         drawCard(emp);
       });
     }
@@ -255,100 +309,44 @@ const app = createApp({
       canvas.width = W;
       canvas.height = H;
 
-      // 背景色 - 暖橙色
-      ctx.fillStyle = '#FDF0E4';
-      ctx.fillRect(0, 0, W, H);
+      // 先绘制背景图
+      if (cardBgImage) {
+        ctx.drawImage(cardBgImage, 0, 0, W, H);
+      } else {
+        // 备用：纯色背景
+        ctx.fillStyle = '#FDF0E4';
+        ctx.fillRect(0, 0, W, H);
+      }
 
-      // 左侧白色卡片区域
-      ctx.fillStyle = '#FFFDF8';
-      roundRect(ctx, 40, 40, 820, 1000, 30);
-      ctx.fill();
+      // 在左侧空白区域叠加文字
+      // 根据背景图，左侧白色区域大约在 x:80-820, y:80-1000
+      const textX = 100;
+      let textY = 200;
 
-      // HAPPY BIRTHDAY 标题
-      ctx.fillStyle = '#E8734A';
-      ctx.font = 'bold 72px Arial';
-      ctx.fillText('HAPPY', 80, 140);
-      ctx.fillText('BIRTHDAY', 80, 220);
-
-      // 生日快乐
-      ctx.fillStyle = '#E8734A';
-      ctx.font = '36px "Microsoft YaHei", sans-serif';
-      ctx.fillText('生日快乐', 80, 280);
-
-      // 分隔线
-      ctx.strokeStyle = '#F0D5C0';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(80, 310);
-      ctx.lineTo(400, 310);
-      ctx.stroke();
-
-      // 亲爱的 XXX
+      // 称呼
       ctx.fillStyle = '#5C3D2E';
-      ctx.font = '32px "Microsoft YaHei", sans-serif';
-      ctx.fillText(`亲爱的${emp.name}`, 80, 380);
+      ctx.font = 'bold 36px "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(`亲爱的 ${emp.name}`, textX, textY);
+      textY += 60;
 
-      // 文案内容 - 自动换行
+      // 文案正文 - 自动换行
       ctx.fillStyle = '#6B4C3B';
       ctx.font = '28px "Microsoft YaHei", sans-serif';
-      const wishLines = wrapText(ctx, emp.wish || '祝你生日快乐！', 700, 80);
-      let y = 440;
+      const wishText = emp.wish || '祝你生日快乐！';
+      const wishLines = wrapText(ctx, wishText, 680);
       wishLines.forEach(line => {
-        ctx.fillText(line, 80, y);
-        y += 48;
+        ctx.fillText(line, textX, textY);
+        textY += 46;
       });
 
-      // 银泰温暖团队
+      // 落款
+      textY += 20;
       ctx.fillStyle = '#5C3D2E';
       ctx.font = '28px "Microsoft YaHei", sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText('银泰温暖团队', 780, 980);
+      ctx.fillText('银泰温暖团队', 800, textY);
       ctx.textAlign = 'left';
-
-      // 右侧装饰区域 - 模拟蛋糕和礼物
-      // 大圆形背景
-      ctx.fillStyle = '#F5E6D3';
-      ctx.beginPath();
-      ctx.arc(1300, 500, 420, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 蛋糕
-      drawCake(ctx, 1100, 380);
-
-      // 礼物盒
-      drawGift(ctx, 1500, 600, '#E8734A');
-      drawGift(ctx, 1620, 650, '#7BA7BC');
-
-      // 气球
-      drawBalloon(ctx, 1650, 200, '#E8734A');
-      drawBalloon(ctx, 1750, 280, '#7BA7BC');
-      drawBalloon(ctx, 1580, 150, '#F5C842');
-
-      // 花朵装饰
-      drawFlower(ctx, 900, 250, '#F5C842');
-      drawFlower(ctx, 950, 350, '#E8734A');
-
-      // 二维码区域
-      ctx.fillStyle = '#FFF';
-      roundRect(ctx, 80, 920, 120, 120, 8);
-      ctx.fill();
-      ctx.strokeStyle = '#DDD';
-      ctx.lineWidth = 1;
-      roundRect(ctx, 80, 920, 120, 120, 8);
-      ctx.stroke();
-      // 模拟二维码
-      ctx.fillStyle = '#333';
-      for (let i = 0; i < 8; i++) {
-        for (let j = 0; j < 8; j++) {
-          if (Math.random() > 0.4) {
-            ctx.fillRect(90 + i * 12, 930 + j * 12, 10, 10);
-          }
-        }
-      }
-      ctx.fillStyle = '#999';
-      ctx.font = '16px "Microsoft YaHei", sans-serif';
-      ctx.fillText('微信扫一扫', 210, 970);
-      ctx.fillText('领取专属生日礼', 210, 995);
     }
 
     function roundRect(ctx, x, y, w, h, r) {
@@ -365,7 +363,7 @@ const app = createApp({
       ctx.closePath();
     }
 
-    function wrapText(ctx, text, maxWidth, _padding) {
+    function wrapText(ctx, text, maxWidth) {
       const lines = [];
       const paragraphs = text.split('\n');
       paragraphs.forEach(para => {
@@ -386,98 +384,6 @@ const app = createApp({
       return lines;
     }
 
-    function drawCake(ctx, x, y) {
-      // 蛋糕底层
-      ctx.fillStyle = '#FFF5EE';
-      roundRect(ctx, x, y + 120, 280, 80, 10);
-      ctx.fill();
-      ctx.strokeStyle = '#F0D5C0';
-      ctx.lineWidth = 2;
-      roundRect(ctx, x, y + 120, 280, 80, 10);
-      ctx.stroke();
-      // 蛋糕中层
-      ctx.fillStyle = '#FFE4D6';
-      roundRect(ctx, x + 20, y + 50, 240, 80, 10);
-      ctx.fill();
-      ctx.strokeStyle = '#F0D5C0';
-      roundRect(ctx, x + 20, y + 50, 240, 80, 10);
-      ctx.stroke();
-      // 蛋糕顶层
-      ctx.fillStyle = '#FFF';
-      roundRect(ctx, x + 40, y, 200, 60, 10);
-      ctx.fill();
-      ctx.strokeStyle = '#F0D5C0';
-      roundRect(ctx, x + 40, y, 200, 60, 10);
-      ctx.stroke();
-      // 奶油装饰
-      ctx.fillStyle = '#FFB6C1';
-      for (let i = 0; i < 6; i++) {
-        ctx.beginPath();
-        ctx.arc(x + 60 + i * 35, y + 55, 12, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // 蜡烛
-      ctx.fillStyle = '#FFD700';
-      ctx.fillRect(x + 130, y - 40, 12, 45);
-      // 火焰
-      ctx.fillStyle = '#FF6B35';
-      ctx.beginPath();
-      ctx.ellipse(x + 136, y - 50, 10, 16, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#FFD700';
-      ctx.beginPath();
-      ctx.ellipse(x + 136, y - 48, 5, 8, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    function drawGift(ctx, x, y, color) {
-      ctx.fillStyle = color;
-      roundRect(ctx, x, y, 100, 80, 8);
-      ctx.fill();
-      // 丝带
-      ctx.fillStyle = '#FFF';
-      ctx.fillRect(x + 45, y, 10, 80);
-      ctx.fillRect(x, y + 35, 100, 10);
-      // 蝴蝶结
-      ctx.fillStyle = '#FFF';
-      ctx.beginPath();
-      ctx.ellipse(x + 50, y - 5, 20, 12, -0.3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(x + 50, y - 5, 20, 12, 0.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    function drawBalloon(ctx, x, y, color) {
-      ctx.fillStyle = color;
-      ctx.globalAlpha = 0.8;
-      ctx.beginPath();
-      ctx.ellipse(x, y, 30, 40, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      // 线
-      ctx.strokeStyle = '#999';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(x, y + 40);
-      ctx.quadraticCurveTo(x + 10, y + 80, x - 5, y + 120);
-      ctx.stroke();
-    }
-
-    function drawFlower(ctx, x, y, color) {
-      ctx.fillStyle = color;
-      for (let i = 0; i < 5; i++) {
-        const angle = (i * 72) * Math.PI / 180;
-        ctx.beginPath();
-        ctx.ellipse(x + Math.cos(angle) * 15, y + Math.sin(angle) * 15, 12, 8, angle, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.fillStyle = '#FFD700';
-      ctx.beginPath();
-      ctx.arc(x, y, 8, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
     function downloadCard() {
       const canvas = cardCanvas.value;
       if (!canvas) return;
@@ -485,6 +391,66 @@ const app = createApp({
       link.download = `${currentPreviewEmployee.value.name}_生日贺卡.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
+    }
+
+    // 一键导出所有贺卡
+    async function exportAllCards() {
+      const wishEmployees = employees.value.filter(e => e.wish);
+      if (wishEmployees.length === 0) {
+        ElementPlus.ElMessage.warning('没有可导出的贺卡');
+        return;
+      }
+      exportCardsLoading.value = true;
+      await loadCardBgImage();
+
+      // 创建离屏 canvas
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = 1920;
+      offCanvas.height = 1080;
+      const offCtx = offCanvas.getContext('2d');
+
+      for (let i = 0; i < wishEmployees.length; i++) {
+        const emp = wishEmployees[i];
+        // 绘制背景
+        if (cardBgImage) {
+          offCtx.drawImage(cardBgImage, 0, 0, 1920, 1080);
+        } else {
+          offCtx.fillStyle = '#FDF0E4';
+          offCtx.fillRect(0, 0, 1920, 1080);
+        }
+        // 叠加文字
+        const textX = 100;
+        let textY = 200;
+        offCtx.fillStyle = '#5C3D2E';
+        offCtx.font = 'bold 36px "Microsoft YaHei", sans-serif';
+        offCtx.textAlign = 'left';
+        offCtx.fillText(`亲爱的 ${emp.name}`, textX, textY);
+        textY += 60;
+        offCtx.fillStyle = '#6B4C3B';
+        offCtx.font = '28px "Microsoft YaHei", sans-serif';
+        const wishLines = wrapText(offCtx, emp.wish, 680);
+        wishLines.forEach(line => {
+          offCtx.fillText(line, textX, textY);
+          textY += 46;
+        });
+        textY += 20;
+        offCtx.fillStyle = '#5C3D2E';
+        offCtx.font = '28px "Microsoft YaHei", sans-serif';
+        offCtx.textAlign = 'right';
+        offCtx.fillText('银泰温暖团队', 800, textY);
+        offCtx.textAlign = 'left';
+
+        // 下载
+        const link = document.createElement('a');
+        link.download = `${emp.name}_生日贺卡.png`;
+        link.href = offCanvas.toDataURL('image/png');
+        link.click();
+
+        // 间隔一下避免浏览器阻止
+        await new Promise(r => setTimeout(r, 300));
+      }
+      exportCardsLoading.value = false;
+      ElementPlus.ElMessage.success(`已导出 ${wishEmployees.length} 张贺卡`);
     }
 
     // ===== 文案库选择（领导替换用） =====
@@ -508,10 +474,12 @@ const app = createApp({
       if (!emp) return;
       emp.wish = `亲爱的${emp.name}\n\n${template.content}\n\n祝你生日快乐！\n\n银泰温暖团队`;
       template.usageCount++;
-      // 在 reviewEmployees 中也更新
+      // 同步到 reviewEmployees
       const reviewEmp = reviewEmployees.value.find(e => e.name === emp.name);
       if (reviewEmp) {
         reviewEmp.wish = emp.wish;
+        reviewEmp.wishStatus = 'modified';
+        reviewEmp.modifySource = '文案库替换';
       }
       saveData();
       showWishPickerDialog.value = false;
@@ -519,20 +487,111 @@ const app = createApp({
     }
 
     // ===== 领导审核 =====
+    function loadReviewData() {
+      const saved = localStorage.getItem('bws_leaderReviewData');
+      if (saved) {
+        reviewEmployees.value = JSON.parse(saved);
+      } else {
+        reviewEmployees.value = [];
+      }
+      selectedRows.value = [];
+      allSelected.value = false;
+    }
+
+    function handleSelectionChange(selection) {
+      selectedRows.value = selection;
+      allSelected.value = selection.length === reviewEmployees.value.length && reviewEmployees.value.length > 0;
+    }
+
+    function selectAll() {
+      // 通过操作 reviewEmployees 的引用来实现全选/取消
+      // Element Plus table 的 toggleAllSelection 方法
+      allSelected.value = !allSelected.value;
+      // 使用 nextTick 确保 DOM 更新
+      nextTick(() => {
+        // 通过重新设置数据来触发全选
+        if (allSelected.value) {
+          selectedRows.value = [...reviewEmployees.value];
+        } else {
+          selectedRows.value = [];
+        }
+      });
+    }
+
     function onWishEdit(row) {
       row.wishStatus = 'modified';
       row.modifySource = '手动修改';
-      saveData();
     }
 
     function approveWish(row) {
       row.wishStatus = 'approved';
-      if (!row.modifySource) row.modifySource = '已通过';
-      saveData();
+      if (!row.modifySource) row.modifySource = '直接通过';
       ElementPlus.ElMessage.success('已通过');
     }
 
+    function batchApprove() {
+      if (selectedRows.value.length === 0) {
+        ElementPlus.ElMessage.warning('请先勾选要通过的文案');
+        return;
+      }
+      selectedRows.value.forEach(row => {
+        row.wishStatus = 'approved';
+        if (!row.modifySource) row.modifySource = '批量通过';
+      });
+      ElementPlus.ElMessage.success(`已批量通过 ${selectedRows.value.length} 条文案`);
+      selectedRows.value = [];
+      allSelected.value = false;
+    }
+
+    function completeReview() {
+      if (reviewEmployees.value.length === 0) {
+        ElementPlus.ElMessage.warning('没有可提交的审核结果');
+        return;
+      }
+      localStorage.setItem('bws_finalReviewData', JSON.stringify(reviewEmployees.value));
+      finalReviewData.value = JSON.parse(JSON.stringify(reviewEmployees.value));
+      ElementPlus.ElMessage.success('审核完成，管理员可在同步页查看结果');
+    }
+
+    // ===== 管理员同步 =====
+    const hasLeaderReview = computed(() => {
+      return finalReviewData.value.length > 0;
+    });
+
+    function syncFromLeader() {
+      if (finalReviewData.value.length === 0) {
+        ElementPlus.ElMessage.warning('没有领导审核结果可同步');
+        return;
+      }
+      let updateCount = 0;
+      finalReviewData.value.forEach(review => {
+        const emp = employees.value.find(e => e.name === review.name);
+        if (emp) {
+          emp.wish = review.wish;
+          emp.wishStatus = review.wishStatus === 'approved' ? 'approved' : 'modified';
+          emp.modifySource = review.modifySource || '领导审核';
+          updateCount++;
+        }
+      });
+      saveData();
+      ElementPlus.ElMessage.success(`已同步 ${updateCount} 条审核结果`);
+    }
+
     // ===== Excel 导入导出 =====
+    function downloadImportTemplate() {
+      const templateData = [
+        { '姓名': '张三', '性别': '女', '月份': 3, '日期': 15, '部门': '人力资源部' },
+        { '姓名': '李四', '性别': '男', '月份': 7, '日期': 22, '部门': '财务部' },
+        { '姓名': '王五', '性别': '女', '月份': 12, '日期': 8, '部门': '运营部' }
+      ];
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      ws['!cols'] = [{ wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 15 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '员工信息');
+      XLSX.writeFile(wb, '员工导入模板.xlsx');
+      ElementPlus.ElMessage.success('模板已下载，请按格式填写后导入');
+    }
+
     function importEmployees(file) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -541,21 +600,30 @@ const app = createApp({
           const workbook = XLSX.read(data, { type: 'array' });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const json = XLSX.utils.sheet_to_json(sheet);
+          let count = 0;
           json.forEach(row => {
-            const name = row['姓名'] || row['name'];
+            // 兼容中英文列名
+            const name = row['姓名'] || row['name'] || row['Name'];
             if (!name) return;
-            const genderText = row['性别'] || row['gender'] || '女';
-            const gender = genderText === '男' ? 'male' : 'female';
-            const birthMonth = parseInt(row['生日月份'] || row['birthMonth'] || row['月份'] || 1);
-            const department = row['部门'] || row['department'] || '';
-            // 检查是否已存在
-            const exists = employees.value.find(e => e.name === name);
+            const genderText = String(row['性别'] || row['gender'] || row['Gender'] || '女');
+            let gender = 'female';
+            if (genderText === '男' || genderText === 'male' || genderText === 'Male') gender = 'male';
+            else if (genderText === '女' || genderText === 'female' || genderText === 'Female') gender = 'female';
+            const birthMonth = parseInt(row['月份'] || row['month'] || row['Month'] || row['生日月份'] || 1);
+            const birthDay = parseInt(row['日期'] || row['day'] || row['Day'] || row['生日日期'] || 1);
+            const department = row['部门'] || row['department'] || row['Department'] || '';
+            const exists = employees.value.find(emp => emp.name === name);
             if (!exists) {
-              employees.value.push({ name, gender, birthMonth, department, wish: '', wishStatus: 'pending', modifySource: '' });
+              employees.value.push({
+                name, gender, birthMonth: isNaN(birthMonth) ? 1 : birthMonth,
+                birthDay: isNaN(birthDay) ? 1 : birthDay,
+                department, wish: '', wishStatus: 'pending', modifySource: ''
+              });
+              count++;
             }
           });
           saveData();
-          ElementPlus.ElMessage.success(`导入成功，共导入 ${json.length} 条`);
+          ElementPlus.ElMessage.success(`导入成功，新增 ${count} 名员工`);
         } catch (err) {
           ElementPlus.ElMessage.error('导入失败：' + err.message);
         }
@@ -567,9 +635,10 @@ const app = createApp({
       const data = employees.value.map(e => ({
         '姓名': e.name,
         '性别': e.gender === 'male' ? '男' : '女',
-        '生日月份': e.birthMonth,
+        '月份': e.birthMonth,
+        '日期': e.birthDay || 1,
         '部门': e.department || '',
-        '文案状态': e.wishStatus === 'approved' ? '已通过' : e.wishStatus === 'modified' ? '已修改' : '待生成'
+        '文案状态': e.wishStatus === 'approved' ? '已通过' : e.wishStatus === 'modified' ? '待修改' : '未生成'
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -581,14 +650,14 @@ const app = createApp({
       const data = employees.value.filter(e => e.wish).map(e => ({
         '姓名': e.name,
         '性别': e.gender === 'male' ? '男' : '女',
-        '生日月份': e.birthMonth + '月',
+        '月份': e.birthMonth + '月',
+        '日期': (e.birthDay || 1) + '日',
         '部门': e.department || '',
         '祝福文案': e.wish,
         '状态': e.wishStatus === 'approved' ? '已通过' : '待审核'
       }));
       const ws = XLSX.utils.json_to_sheet(data);
-      // 设置列宽
-      ws['!cols'] = [{ wch: 10 }, { wch: 6 }, { wch: 10 }, { wch: 15 }, { wch: 60 }, { wch: 10 }];
+      ws['!cols'] = [{ wch: 10 }, { wch: 6 }, { wch: 8 }, { wch: 8 }, { wch: 15 }, { wch: 60 }, { wch: 10 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, '生日文案');
       XLSX.writeFile(wb, '生日祝福文案.xlsx');
@@ -639,82 +708,7 @@ const app = createApp({
             count++;
           });
           saveData();
-          ElementPlus.ElMessage.success(`导入成功，共导入 ${count} 条文案`);
-        } catch (err) {
-          ElementPlus.ElMessage.error('导入失败：' + err.message);
-        }
-      };
-      reader.readAsArrayBuffer(file.raw);
-    }
-
-    // 领导导入文案
-    function importWishesForReview(file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(sheet);
-          reviewEmployees.value = json.map(row => {
-            const genderText = row['性别'] || '女';
-            return {
-              name: row['姓名'] || row['name'],
-              gender: genderText === '男' ? 'male' : 'female',
-              birthMonth: parseInt(row['生日月份'] || 1),
-              department: row['部门'] || '',
-              wish: row['祝福文案'] || row['wish'] || row['文案'] || '',
-              wishStatus: 'pending',
-              modifySource: ''
-            };
-          }).filter(e => e.name && e.wish);
-          ElementPlus.ElMessage.success(`导入成功，共 ${reviewEmployees.value.length} 条文案待审核`);
-        } catch (err) {
-          ElementPlus.ElMessage.error('导入失败：' + err.message);
-        }
-      };
-      reader.readAsArrayBuffer(file.raw);
-    }
-
-    function exportReviewResult() {
-      const data = reviewEmployees.value.map(e => ({
-        '姓名': e.name,
-        '性别': e.gender === 'male' ? '男' : '女',
-        '生日月份': e.birthMonth + '月',
-        '部门': e.department || '',
-        '祝福文案': e.wish,
-        '状态': e.wishStatus === 'approved' ? '已通过' : '需修改',
-        '修改方式': e.modifySource || ''
-      }));
-      const ws = XLSX.utils.json_to_sheet(data);
-      ws['!cols'] = [{ wch: 10 }, { wch: 6 }, { wch: 10 }, { wch: 15 }, { wch: 60 }, { wch: 10 }, { wch: 12 }];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '审核结果');
-      XLSX.writeFile(wb, '领导审核结果.xlsx');
-    }
-
-    // 管理员导入领导审核结果
-    function importLeaderReview(file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(sheet);
-          let updateCount = 0;
-          json.forEach(row => {
-            const name = row['姓名'] || row['name'];
-            const emp = employees.value.find(e => e.name === name);
-            if (emp && row['祝福文案']) {
-              emp.wish = row['祝福文案'];
-              emp.wishStatus = row['状态'] === '已通过' ? 'approved' : 'modified';
-              emp.modifySource = row['修改方式'] || '领导修改';
-              updateCount++;
-            }
-          });
-          saveData();
-          ElementPlus.ElMessage.success(`同步成功，更新 ${updateCount} 条文案`);
+          ElementPlus.ElMessage.success(`导入成功，新增 ${count} 条文案`);
         } catch (err) {
           ElementPlus.ElMessage.error('导入失败：' + err.message);
         }
@@ -726,14 +720,15 @@ const app = createApp({
       const data = employees.value.filter(e => e.wish).map(e => ({
         '姓名': e.name,
         '性别': e.gender === 'male' ? '男' : '女',
-        '生日月份': e.birthMonth + '月',
+        '月份': e.birthMonth + '月',
+        '日期': (e.birthDay || 1) + '日',
         '部门': e.department || '',
         '祝福文案': e.wish,
-        '状态': e.wishStatus === 'approved' ? '已通过' : e.wishStatus === 'modified' ? '领导已修改' : '待审核',
+        '状态': e.wishStatus === 'approved' ? '已通过' : e.wishStatus === 'modified' ? '领导待修改' : '待审核',
         '修改方式': e.modifySource || '-'
       }));
       const ws = XLSX.utils.json_to_sheet(data);
-      ws['!cols'] = [{ wch: 10 }, { wch: 6 }, { wch: 10 }, { wch: 15 }, { wch: 60 }, { wch: 12 }, { wch: 12 }];
+      ws['!cols'] = [{ wch: 10 }, { wch: 6 }, { wch: 8 }, { wch: 8 }, { wch: 15 }, { wch: 60 }, { wch: 12 }, { wch: 12 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, '最终文案');
       XLSX.writeFile(wb, '最终版生日文案.xlsx');
@@ -741,24 +736,30 @@ const app = createApp({
 
     return {
       isLoggedIn, currentUserRole, loginLoading, currentPage, loginForm,
-      employees, wishLibrary, reviewEmployees,
+      employees, wishLibrary, reviewEmployees, finalReviewData,
       showAddEmployee, showAddWishTemplate, showCardPreview, showWishPickerDialog,
       editingEmployeeIndex, currentPreviewEmployee, currentPickerEmployee, cardCanvas,
+      exportCardsLoading,
       employeeForm, wishTemplateForm,
       libraryFilter, pickerFilter,
       filteredLibrary,
+      selectedRows, allSelected,
+      hasLeaderReview,
       handleLogin, handleLogout,
       showAddEmployeeDialog, editEmployee, saveEmployee, deleteEmployee,
       batchGenerateWishes, regenerateWish,
       saveWishTemplate, deleteWishTemplate, filterLibrary,
-      previewCard, downloadCard,
+      previewCard, downloadCard, exportAllCards,
       showWishPicker, getPickerWishes, replaceFromLibrary,
-      onWishEdit, approveWish,
+      submitToLeader,
+      loadReviewData, handleSelectionChange, selectAll,
+      onWishEdit, approveWish, batchApprove, completeReview,
+      syncFromLeader,
+      downloadImportTemplate,
       importEmployees, exportEmployees,
       exportWishesExcel,
       exportWishLibrary, importWishLibrary,
-      importWishesForReview, exportReviewResult,
-      importLeaderReview, exportFinalExcel,
+      exportFinalExcel,
       saveData
     };
   }
