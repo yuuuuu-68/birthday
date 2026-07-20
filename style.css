@@ -29,15 +29,8 @@ body {
 
 .login-title {
   text-align: center;
-  font-size: 24px;
+  font-size: 28px;
   color: #333;
-  margin-bottom: 8px;
-}
-
-.login-subtitle {
-  text-align: center;
-  font-size: 14px;
-  color: #999;
   margin-bottom: 30px;
 }
 
@@ -147,6 +140,7 @@ body {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 /* 筛选栏 */
@@ -185,6 +179,21 @@ body {
 .el-table .el-textarea__inner {
   padding: 4px 8px;
   font-size: 14px;
+}
+
+/* 批量操作按钮组 */
+.batch-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 15px;
+  padding: 10px 15px;
+  background: #f5f7fa;
+  border-radius: 6px;
+}
+
+.batch-actions .el-button {
+  margin: 0;
 }
 
 /* 响应式 */
