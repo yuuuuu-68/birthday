@@ -295,10 +295,11 @@ const app = createApp({
     function previewCard(emp) {
       currentPreviewEmployee.value = emp;
       showCardPreview.value = true;
-      nextTick(async () => {
+      // 等待弹窗完全打开后再绘制
+      setTimeout(async () => {
         await loadCardBgImage();
         drawCard(emp);
-      });
+      }, 300);
     }
 
     function drawCard(emp) {
@@ -308,6 +309,8 @@ const app = createApp({
       const W = 1920, H = 1080;
       canvas.width = W;
       canvas.height = H;
+      // 确保画布完全清空
+      ctx.clearRect(0, 0, W, H);
 
       // 绘制背景图
       if (cardBgImage) {
