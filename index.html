@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>银泰生日祝福文案系统</title>
+  <title>生日祝福系统</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/index.css">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -12,13 +12,12 @@
     <!-- 登录页 -->
     <div v-if="!isLoggedIn" class="login-page">
       <div class="login-card">
-        <h1 class="login-title">银泰生日祝福文案系统</h1>
-        <p class="login-subtitle">Happy Birthday Wish System</p>
+        <h1 class="login-title">生日祝福系统</h1>
         <el-form :model="loginForm" class="login-form">
           <el-form-item>
             <el-select v-model="loginForm.role" placeholder="选择角色" style="width:100%">
-              <el-option label="管理员" value="admin"></el-option>
-              <el-option label="领导" value="leader"></el-option>
+              <el-option label="admin" value="admin"></el-option>
+              <el-option label="leader" value="leader"></el-option>
             </el-select>
           </el-form-item>
           <el-form-item>
@@ -26,7 +25,7 @@
           </el-form-item>
           <el-button type="primary" style="width:100%" @click="handleLogin" :loading="loginLoading">登 录</el-button>
         </el-form>
-        <p class="login-hint">默认密码：admin123（管理员）/ leader123（领导）</p>
+        <p class="login-hint">默认密码：admin123（admin）/ leader123（leader）</p>
       </div>
     </div>
 
@@ -36,14 +35,14 @@
       <div class="sidebar">
         <div class="sidebar-header">
           <h2>生日祝福系统</h2>
-          <span class="role-badge">{{ currentUserRole === 'admin' ? '管理员' : '领导' }}</span>
+          <span class="role-badge">{{ currentUserRole === 'admin' ? 'admin' : 'leader' }}</span>
         </div>
         <el-menu :default-active="currentPage" @select="currentPage = $event" class="sidebar-menu">
           <template v-if="currentUserRole === 'admin'">
             <el-menu-item index="dashboard">👥 员工管理</el-menu-item>
             <el-menu-item index="generate">✏️ 文案生成</el-menu-item>
             <el-menu-item index="library">📚 文案库管理</el-menu-item>
-            <el-menu-item index="sync">🔄 同步审核结果</el-menu-item>
+            <el-menu-item index="sync">📋 同步审核页</el-menu-item>
           </template>
           <template v-if="currentUserRole === 'leader'">
             <el-menu-item index="review">📋 文案审核</el-menu-item>
@@ -62,6 +61,7 @@
             <h2>员工信息管理</h2>
             <div class="page-actions">
               <el-button type="primary" @click="showAddEmployeeDialog">添加员工</el-button>
+              <el-button @click="downloadImportTemplate">下载导入模板</el-button>
               <el-upload action="#" :auto-upload="false" :on-change="importEmployees" accept=".xlsx,.xls" :show-file-list="false">
                 <el-button>导入Excel</el-button>
               </el-upload>
@@ -73,14 +73,17 @@
             <el-table-column prop="gender" label="性别" width="80">
               <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
             </el-table-column>
-            <el-table-column prop="birthMonth" label="生日月份" width="100">
+            <el-table-column prop="birthMonth" label="月份" width="80">
               <template #default="{ row }">{{ row.birthMonth }}月</template>
+            </el-table-column>
+            <el-table-column prop="birthDay" label="日期" width="80">
+              <template #default="{ row }">{{ row.birthDay || '-' }}日</template>
             </el-table-column>
             <el-table-column prop="department" label="部门" width="150"></el-table-column>
             <el-table-column prop="wishStatus" label="文案状态" width="120">
               <template #default="{ row }">
                 <el-tag :type="row.wishStatus === 'approved' ? 'success' : row.wishStatus === 'modified' ? 'warning' : 'info'" size="small">
-                  {{ row.wishStatus === 'approved' ? '已通过' : row.wishStatus === 'modified' ? '已修改' : '待生成' }}
+                  {{ row.wishStatus === 'approved' ? '已通过' : row.wishStatus === 'modified' ? '待修改' : '未生成' }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -98,7 +101,13 @@
           <div class="page-header">
             <h2>文案生成与贺卡预览</h2>
             <div class="page-actions">
-              <el-button type="primary" @click="batchGenerateWishes" :disabled="employees.length === 0">批量生成文案</el-button>
+              <el-button type="primary" @click="batchGenerateWishes" :disabled="employees.length === 0">一键生成文案</el-button>
+              <el-button type="success" @click="exportAllCards" :disabled="employees.filter(e => e.wish).length === 0" :loading="exportCardsLoading">一键导出所有贺卡</el-button>
+              <el-button type="warning" @click="submitToLeader" :disabled="employees.filter(e => e.wish).length === 0">确认提交给领导</el-button>
+              <el-button @click="downloadImportTemplate">下载导入模板</el-button>
+              <el-upload action="#" :auto-upload="false" :on-change="importEmployees" accept=".xlsx,.xls" :show-file-list="false">
+                <el-button>导入Excel</el-button>
+              </el-upload>
               <el-button @click="exportWishesExcel">导出文案Excel</el-button>
             </div>
           </div>
@@ -107,6 +116,13 @@
             <el-table-column prop="gender" label="性别" width="70">
               <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
             </el-table-column>
+            <el-table-column prop="birthMonth" label="月份" width="70">
+              <template #default="{ row }">{{ row.birthMonth }}月</template>
+            </el-table-column>
+            <el-table-column prop="birthDay" label="日期" width="70">
+              <template #default="{ row }">{{ row.birthDay || '-' }}日</template>
+            </el-table-column>
+            <el-table-column prop="department" label="部门" width="120"></el-table-column>
             <el-table-column prop="wish" label="祝福文案" min-width="300">
               <template #default="{ row }">
                 <el-input type="textarea" v-model="row.wish" :rows="3" @change="saveData"></el-input>
@@ -119,7 +135,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="employees.filter(e => e.wish).length === 0" description="暂无生成的文案，请先添加员工并点击批量生成"></el-empty>
+          <el-empty v-if="employees.filter(e => e.wish).length === 0" description="暂无生成的文案，请先添加员工并点击一键生成"></el-empty>
         </div>
 
         <!-- 管理员 - 文案库管理 -->
@@ -193,19 +209,19 @@
           <div class="page-header">
             <h2>同步领导审核结果</h2>
             <div class="page-actions">
-              <el-upload action="#" :auto-upload="false" :on-change="importLeaderReview" accept=".xlsx,.xls" :show-file-list="false">
-                <el-button type="primary">导入领导审核结果</el-button>
-              </el-upload>
+              <el-button type="primary" @click="syncFromLeader" :disabled="!hasLeaderReview">一键同步领导审核结果</el-button>
               <el-button @click="exportFinalExcel">导出最终版Excel</el-button>
             </div>
           </div>
-          <el-table :data="employees.filter(e => e.wish)" border stripe style="width:100%">
+          <el-alert v-if="!hasLeaderReview" title="领导尚未提交审核结果" type="info" :closable="false" show-icon style="margin-bottom:15px"></el-alert>
+          <el-alert v-if="hasLeaderReview" :title="'领导已提交审核结果，共 ' + finalReviewData.length + ' 条记录'" type="success" :closable="false" show-icon style="margin-bottom:15px"></el-alert>
+          <el-table :data="finalReviewData" border stripe style="width:100%">
             <el-table-column prop="name" label="姓名" width="100"></el-table-column>
-            <el-table-column prop="wish" label="当前文案" min-width="250"></el-table-column>
+            <el-table-column prop="wish" label="祝福文案" min-width="300"></el-table-column>
             <el-table-column prop="wishStatus" label="状态" width="120">
               <template #default="{ row }">
-                <el-tag :type="row.wishStatus === 'approved' ? 'success' : row.wishStatus === 'modified' ? 'warning' : 'info'" size="small">
-                  {{ row.wishStatus === 'approved' ? '已通过' : row.wishStatus === 'modified' ? '领导已修改' : '待审核' }}
+                <el-tag :type="row.wishStatus === 'approved' ? 'success' : 'warning'" size="small">
+                  {{ row.wishStatus === 'approved' ? '已通过' : '待修改' }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -213,7 +229,7 @@
               <template #default="{ row }">{{ row.modifySource || '-' }}</template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="employees.filter(e => e.wish).length === 0" description="暂无文案数据"></el-empty>
+          <el-empty v-if="employees.filter(e => e.wish).length === 0 && !hasLeaderReview" description="暂无数据"></el-empty>
         </div>
 
         <!-- 领导 - 审核页 -->
@@ -221,23 +237,30 @@
           <div class="page-header">
             <h2>文案审核</h2>
             <div class="page-actions">
-              <el-upload action="#" :auto-upload="false" :on-change="importWishesForReview" accept=".xlsx,.xls" :show-file-list="false">
-                <el-button>导入文案</el-button>
-              </el-upload>
-              <el-button type="primary" @click="exportReviewResult">导出审核结果</el-button>
+              <el-button @click="selectAll" v-if="reviewEmployees.length > 0">{{ allSelected ? '取消全选' : '全选' }}</el-button>
+              <el-button type="success" @click="batchApprove" :disabled="selectedRows.length === 0">批量通过 ({{ selectedRows.length }})</el-button>
+              <el-button type="primary" @click="completeReview" :disabled="reviewEmployees.length === 0">完成审核</el-button>
             </div>
           </div>
-          <el-table :data="reviewEmployees" border stripe style="width:100%">
+          <el-table :data="reviewEmployees" border stripe style="width:100%" @selection-change="handleSelectionChange">
+            <el-table-column type="selection" width="55"></el-table-column>
             <el-table-column prop="name" label="姓名" width="100"></el-table-column>
             <el-table-column prop="gender" label="性别" width="70">
               <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
             </el-table-column>
+            <el-table-column prop="birthMonth" label="月份" width="70">
+              <template #default="{ row }">{{ row.birthMonth }}月</template>
+            </el-table-column>
+            <el-table-column prop="birthDay" label="日期" width="70">
+              <template #default="{ row }">{{ row.birthDay || '-' }}日</template>
+            </el-table-column>
+            <el-table-column prop="department" label="部门" width="120"></el-table-column>
             <el-table-column prop="wish" label="祝福文案" min-width="300">
               <template #default="{ row }">
                 <el-input type="textarea" v-model="row.wish" :rows="3" @change="onWishEdit(row)"></el-input>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="220">
+            <el-table-column label="操作" width="200">
               <template #default="{ row }">
                 <el-button size="small" @click="showWishPicker(row)">从文案库替换</el-button>
                 <el-button size="small" type="success" @click="approveWish(row)">通过</el-button>
@@ -251,7 +274,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="reviewEmployees.length === 0" description="暂无待审核文案，请先导入管理员生成的文案Excel"></el-empty>
+          <el-empty v-if="reviewEmployees.length === 0" description="暂无待审核文案，请等待管理员提交"></el-empty>
         </div>
       </div>
     </div>
@@ -271,6 +294,9 @@
         <el-form-item label="生日月份">
           <el-input-number v-model="employeeForm.birthMonth" :min="1" :max="12"></el-input-number>
         </el-form-item>
+        <el-form-item label="生日日期">
+          <el-input-number v-model="employeeForm.birthDay" :min="1" :max="31"></el-input-number>
+        </el-form-item>
         <el-form-item label="部门">
           <el-input v-model="employeeForm.department" placeholder="选填"></el-input>
         </el-form-item>
@@ -285,7 +311,7 @@
     <el-dialog v-model="showAddWishTemplate" title="新增文案模板" width="550px">
       <el-form :model="wishTemplateForm" label-width="80px">
         <el-form-item label="文案内容">
-          <el-input type="textarea" v-model="wishTemplateForm.content" :rows="4" placeholder="请输入文案正文（不含姓名和落款）"></el-input>
+          <el-input type="textarea" v-model="wishTemplateForm.content" :rows="4" placeholder="请输入文案内容（不含姓名和落款）"></el-input>
         </el-form-item>
         <el-form-item label="适用性别">
           <el-select v-model="wishTemplateForm.gender" style="width:100%">
@@ -304,7 +330,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="标签">
-          <el-input v-model="wishTemplateForm.tags" placeholder="如：诗意,温馨,事业（逗号分隔）"></el-input>
+          <el-input v-model="wishTemplateForm.tags" placeholder="如：诗意,温馨,事业，逗号分隔"></el-input>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -345,7 +371,7 @@
         <el-table-column prop="usageCount" label="使用次数" width="90"></el-table-column>
         <el-table-column label="操作" width="80">
           <template #default="{ row }">
-            <el-button size="small" type="primary" @click="replaceFromLibrary(row)">选用</el-button>
+            <el-button size="small" type="primary" @click="replaceFromLibrary(row)">选择</el-button>
           </template>
         </el-table-column>
       </el-table>
