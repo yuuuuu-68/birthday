@@ -1,0 +1,202 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background: #f0f2f5;
+  min-height: 100vh;
+}
+
+/* 登录页 */
+.login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.login-card {
+  background: white;
+  border-radius: 16px;
+  padding: 50px 40px;
+  width: 400px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+}
+
+.login-title {
+  text-align: center;
+  font-size: 24px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.login-subtitle {
+  text-align: center;
+  font-size: 14px;
+  color: #999;
+  margin-bottom: 30px;
+}
+
+.login-form {
+  margin-bottom: 10px;
+}
+
+.login-hint {
+  text-align: center;
+  font-size: 12px;
+  color: #bbb;
+  margin-top: 15px;
+}
+
+/* 主布局 */
+.main-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  background: #001529;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.sidebar-header h2 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.role-badge {
+  display: inline-block;
+  background: #1890ff;
+  color: white;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.sidebar-menu {
+  flex: 1;
+  border-right: none;
+  background: #001529;
+}
+
+.sidebar-menu .el-menu-item {
+  color: rgba(255,255,255,0.65);
+}
+
+.sidebar-menu .el-menu-item.is-active {
+  background: #1890ff;
+  color: white;
+}
+
+.sidebar-menu .el-menu-item:hover {
+  color: white;
+  background: rgba(255,255,255,0.08);
+}
+
+.sidebar-footer {
+  padding: 15px 20px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.sidebar-footer .el-button {
+  color: rgba(255,255,255,0.65);
+}
+
+/* 内容区 */
+.content-area {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.page-content {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.page-header h2 {
+  font-size: 20px;
+  color: #333;
+}
+
+.page-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 筛选栏 */
+.filter-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* 文案库统计 */
+.library-stats {
+  margin-top: 15px;
+  text-align: right;
+  color: #999;
+  font-size: 13px;
+}
+
+/* 贺卡预览 */
+.card-preview-container {
+  max-height: 600px;
+  overflow: auto;
+}
+
+.card-preview-container canvas {
+  display: block;
+}
+
+/* 表格内编辑 */
+.el-table .el-input__wrapper,
+.el-table .el-textarea__inner {
+  box-shadow: none;
+}
+
+.el-table .el-textarea__inner {
+  padding: 4px 8px;
+  font-size: 14px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .main-layout {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+  }
+  .login-card {
+    width: 90%;
+    padding: 30px 20px;
+  }
+}
