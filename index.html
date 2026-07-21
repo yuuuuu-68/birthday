@@ -107,7 +107,7 @@
             <h2>文案生成与贺卡预览</h2>
             <div class="page-actions">
               <el-button type="primary" @click="batchGenerateWishes" :disabled="employees.length === 0">一键生成文案</el-button>
-              <el-button type="warning" @click="submitToLeader" :disabled="employees.filter(e => e.wish).length === 0">确认提交给领导</el-button>
+              <el-button type="warning" @click="submitToLeader" :disabled="employees.filter(e => e.wish).length === 0">{{ submitSelectedRows.length > 0 ? '提交勾选的 ' + submitSelectedRows.length + ' 条' : '确认提交给领导' }}</el-button>
               <el-button @click="downloadImportTemplate">下载导入模板</el-button>
               <el-upload action="#" :auto-upload="false" :on-change="importEmployees" accept=".xlsx,.xls" :show-file-list="false">
                 <el-button>导入Excel</el-button>
@@ -115,7 +115,8 @@
               <el-button @click="exportWishesExcel">导出文案Excel</el-button>
             </div>
           </div>
-          <el-table :data="employees.filter(e => e.wish)" border stripe style="width:100%">
+          <el-table :data="employees.filter(e => e.wish)" border stripe style="width:100%" @selection-change="handleSubmitSelectionChange">
+            <el-table-column type="selection" width="55"></el-table-column>
             <el-table-column prop="name" label="姓名" width="100"></el-table-column>
             <el-table-column prop="gender" label="性别" width="70">
               <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
@@ -489,7 +490,7 @@
   <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/locale/zh-cn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="wishTemplates.js?v=18"></script>
-  <script src="app.45449f51.js"></script>
+  <script src="wishTemplates.js?v=19"></script>
+  <script src="app.d9759da9.js"></script>
 </body>
 </html>
