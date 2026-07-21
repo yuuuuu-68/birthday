@@ -45,6 +45,9 @@ const app = createApp({
     const exportSelectedRows = ref([]);
     const exportAllSelected = ref(false);
 
+    // 提交页 - 勾选
+    const submitSelectedRows = ref([]);
+
     // 历史审核记录筛选
     const historyFilter = reactive({ keyword: '' });
 
@@ -87,10 +90,8 @@ const app = createApp({
     }
 
     let syncTimer = null;
-    function syncToGitHub() {
-      // 防抖：500ms内多次调用只执行一次
-      if (syncTimer) clearTimeout(syncTimer);
-      syncTimer = setTimeout(async () => {
+    function syncToGitHub(immediate) {
+      const doSync = async () => {
         syncStatus.value = 'syncing';
         try {
           const data = {
@@ -124,7 +125,9 @@ const app = createApp({
           console.error('推送到GitHub失败:', e);
           syncStatus.value = 'error';
         }
-      }, 500);
+      };
+      if (immediate) { doSync(); } 
+      else { if (syncTimer) clearTimeout(syncTimer); syncTimer = setTimeout(doSync, 500); }
     }
 
     // 页面重新激活时从 GitHub 同步
@@ -371,17 +374,19 @@ const app = createApp({
 
     // ===== 提交给领导（带二次确认） =====
     function submitToLeader() {
-      const wishEmployees = employees.value.filter(e => e.wish);
-      if (wishEmployees.length === 0) {
+      const toSubmit = submitSelectedRows.value.length > 0
+        ? submitSelectedRows.value
+        : employees.value.filter(e => e.wish);
+      if (toSubmit.length === 0) {
         ElementPlus.ElMessage.warning('没有可提交的文案');
         return;
       }
       ElementPlus.ElMessageBox.confirm(
-        `确定将 ${wishEmployees.length} 条文案提交给领导审核吗？`,
+        `确定将 ${toSubmit.length} 条文案提交给领导审核吗？`,
         '确认提交',
         { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' }
       ).then(() => {
-        const reviewData = wishEmployees.map(e => ({
+        const reviewData = toSubmit.map(e => ({
           name: e.name,
           gender: e.gender,
           birthMonth: e.birthMonth,
@@ -392,8 +397,13 @@ const app = createApp({
           modifySource: ''
         }));
         localStorage.setItem('bws_leaderReviewData', JSON.stringify(reviewData));
+        submitSelectedRows.value = [];
         ElementPlus.ElMessage.success(`已提交 ${reviewData.length} 条文案给领导审核`);
       }).catch(() => {});
+    }
+
+    function handleSubmitSelectionChange(rows) {
+      submitSelectedRows.value = rows;
     }
 
     // ===== 文案库 =====
@@ -697,12 +707,13 @@ const app = createApp({
       // 自动清空员工数据和审核数据
       employees.value = [];
       finalReviewData.value = [];
+      reviewEmployees.value = [];
       exportSelectedRows.value = [];
       exportAllSelected.value = false;
       localStorage.removeItem('bws_employees');
       localStorage.removeItem('bws_finalReviewData');
       localStorage.removeItem('bws_leaderReviewData');
-      saveData(); // 再次保存，确保空数组写入 localStorage
+      syncToGitHub(true); // 立即同步到 GitHub（跳过防抖）
       exportCardsLoading.value = false;
       ElementPlus.ElMessage.success(`已导出 ${cardImages.length} 张贺卡，员工数据已自动清空（历史记录可在"审核历史"中查看）`);
     }
@@ -1082,6 +1093,7 @@ const app = createApp({
       filteredLibrary,
       selectedRows, allSelected,
       exportSelectedRows, exportAllSelected,
+      submitSelectedRows,
       historyFilter, filteredHistory,
       hasLeaderReview,
       handleLogin, handleLogout,
@@ -1091,7 +1103,7 @@ const app = createApp({
       previewCard, downloadCard, exportAllCards,
       handleExportSelectionChange, toggleExportSelectAll,
       showWishPicker, getPickerWishes, replaceFromLibrary,
-      submitToLeader,
+      submitToLeader, handleSubmitSelectionChange,
       loadReviewData, handleSelectionChange, selectAll,
       onWishEdit, completeReview,
       syncFromLeader, deleteHistoryRecord, exportHistoryExcel,
