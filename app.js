@@ -55,6 +55,8 @@ const app = createApp({
         wishLibrary.value = JSON.parse(JSON.stringify(DEFAULT_WISH_LIBRARY));
         saveData();
       }
+      // 预加载贺卡背景图
+      loadCardBgImage();
       // 领导登录时自动加载审核数据
       if (isLoggedIn.value && currentUserRole.value === 'leader') {
         loadReviewData();
@@ -318,14 +320,28 @@ const app = createApp({
 
     // ===== 贺卡绘制 (Canvas) - 使用背景图 =====
     let cardBgImage = null;
+    let cardBgImageLoaded = false;
+
     function loadCardBgImage() {
       return new Promise((resolve) => {
-        if (cardBgImage && cardBgImage.complete) { resolve(cardBgImage); return; }
+        if (cardBgImageLoaded && cardBgImage) { resolve(cardBgImage); return; }
         const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => { cardBgImage = img; resolve(img); };
-        img.onerror = () => { resolve(null); };
-        img.src = './card-bg.png';
+        img.onload = () => {
+          cardBgImage = img;
+          cardBgImageLoaded = true;
+          resolve(img);
+        };
+        img.onerror = (e) => {
+          console.error('贺卡背景图加载失败:', e);
+          // 重试一次
+          setTimeout(() => {
+            const retryImg = new Image();
+            retryImg.onload = () => { cardBgImage = retryImg; cardBgImageLoaded = true; resolve(retryImg); };
+            retryImg.onerror = () => { resolve(null); };
+            retryImg.src = 'card-bg.png?' + Date.now();
+          }, 500);
+        };
+        img.src = 'card-bg.png';
       });
     }
 
