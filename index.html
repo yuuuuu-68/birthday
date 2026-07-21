@@ -163,7 +163,20 @@
               <el-option label="冬季(12-2月)" value="winter"></el-option>
               <el-option label="通用" value="all"></el-option>
             </el-select>
-            <el-input v-model="libraryFilter.keyword" placeholder="搜索关键词" clearable style="width:200px" @input="filterLibrary"></el-input>
+            <el-select v-model="libraryFilter.keyword" placeholder="关键词筛选" clearable filterable style="width:150px" @change="filterLibrary">
+              <el-option label="诗意" value="诗意"></el-option>
+              <el-option label="励志" value="励志"></el-option>
+              <el-option label="温馨" value="温馨"></el-option>
+              <el-option label="祝福" value="祝福"></el-option>
+              <el-option label="浪漫" value="浪漫"></el-option>
+              <el-option label="温暖" value="温暖"></el-option>
+              <el-option label="事业" value="事业"></el-option>
+              <el-option label="温柔" value="温柔"></el-option>
+              <el-option label="清新" value="清新"></el-option>
+              <el-option label="热情" value="热情"></el-option>
+              <el-option label="古风" value="古风"></el-option>
+              <el-option label="历史" value="历史"></el-option>
+            </el-select>
           </div>
           <el-table :data="filteredLibrary" border stripe style="width:100%">
             <el-table-column prop="content" label="文案内容" min-width="300">
@@ -472,7 +485,7 @@
   <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/locale/zh-cn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="wishTemplates.js?v=10"></script>
-  <script src="app.js?v=10"></script>
+  <script src="wishTemplates.js?v=11"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
