@@ -71,6 +71,7 @@ const app = createApp({
           if (data.wishLibrary) { localStorage.setItem('bws_wishLibrary', JSON.stringify(data.wishLibrary)); wishLibrary.value = data.wishLibrary; }
           if (data.reviewHistory) { localStorage.setItem('bws_reviewHistory', JSON.stringify(data.reviewHistory)); reviewHistory.value = data.reviewHistory; }
           if (data.finalReviewData) { localStorage.setItem('bws_finalReviewData', JSON.stringify(data.finalReviewData)); finalReviewData.value = data.finalReviewData; }
+          if (data.leaderReviewData) { localStorage.setItem('bws_leaderReviewData', JSON.stringify(data.leaderReviewData)); reviewEmployees.value = data.leaderReviewData; }
           localStorage.setItem('bws_dataSha', result.sha);
           syncStatus.value = 'synced';
         } else if (res.status === 404) {
@@ -97,6 +98,7 @@ const app = createApp({
             wishLibrary: JSON.parse(localStorage.getItem('bws_wishLibrary') || '[]'),
             reviewHistory: JSON.parse(localStorage.getItem('bws_reviewHistory') || '[]'),
             finalReviewData: JSON.parse(localStorage.getItem('bws_finalReviewData') || '[]'),
+            leaderReviewData: JSON.parse(localStorage.getItem('bws_leaderReviewData') || '[]'),
             updatedAt: new Date().toISOString()
           };
           const sha = localStorage.getItem('bws_dataSha') || '';
