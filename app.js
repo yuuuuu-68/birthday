@@ -1,4 +1,4 @@
-const { createApp, ref, reactive, computed, onMounted, nextTick } = Vue;
+const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
 
 const app = createApp({
   setup() {
@@ -16,6 +16,7 @@ const app = createApp({
     const wishLibrary = ref([]);
     const reviewEmployees = ref([]);
     const finalReviewData = ref([]);
+    const reviewHistory = ref([]);
 
     // 弹窗状态
     const showAddEmployee = ref(false);
@@ -40,6 +41,13 @@ const app = createApp({
     const selectedRows = ref([]);
     const allSelected = ref(false);
 
+    // 导出页 - 多选
+    const exportSelectedRows = ref([]);
+    const exportAllSelected = ref(false);
+
+    // 历史审核记录筛选
+    const historyFilter = reactive({ keyword: '' });
+
     // ===== 初始化 =====
     onMounted(() => {
       loadData();
@@ -49,6 +57,22 @@ const app = createApp({
       }
       // 领导登录时自动加载审核数据
       if (isLoggedIn.value && currentUserRole.value === 'leader') {
+        loadReviewData();
+      }
+    });
+
+    // 页面切换时自动刷新数据（确保看到最新审核结果）
+    watch(currentPage, (newPage) => {
+      if (newPage === 'sync' || newPage === 'dashboard') {
+        // 从 localStorage 重新加载审核数据和历史记录
+        const savedFinal = localStorage.getItem('bws_finalReviewData');
+        if (savedFinal) finalReviewData.value = JSON.parse(savedFinal);
+        const savedHistory = localStorage.getItem('bws_reviewHistory');
+        if (savedHistory) reviewHistory.value = JSON.parse(savedHistory);
+        // 同步页也要刷新员工数据（领导审核后自动同步的结果）
+        const savedEmps = localStorage.getItem('bws_employees');
+        if (savedEmps) employees.value = JSON.parse(savedEmps);
+      } else if (newPage === 'review') {
         loadReviewData();
       }
     });
@@ -69,6 +93,9 @@ const app = createApp({
         // 加载领导审核结果
         const savedFinal = localStorage.getItem('bws_finalReviewData');
         if (savedFinal) finalReviewData.value = JSON.parse(savedFinal);
+        // 加载历史审核记录
+        const savedHistory = localStorage.getItem('bws_reviewHistory');
+        if (savedHistory) reviewHistory.value = JSON.parse(savedHistory);
       } catch (e) {
         console.error('加载数据失败', e);
       }
@@ -78,6 +105,7 @@ const app = createApp({
       try {
         localStorage.setItem('bws_employees', JSON.stringify(employees.value));
         localStorage.setItem('bws_wishLibrary', JSON.stringify(wishLibrary.value));
+        localStorage.setItem('bws_reviewHistory', JSON.stringify(reviewHistory.value));
       } catch (e) {
         console.error('保存数据失败', e);
       }
@@ -192,15 +220,18 @@ const app = createApp({
       const topHalf = candidates.slice(0, Math.max(1, Math.ceil(candidates.length / 2)));
       const selected = topHalf[Math.floor(Math.random() * topHalf.length)];
       selected.usageCount++;
-      return `亲爱的${emp.name}\n\n${selected.content}\n\n祝你生日快乐！\n\n银泰温暖团队`;
+      return selected.content;
     }
 
+    function formatWish(emp) {
+      return '亲爱的' + emp.name + '\n\n' + emp.wish + '\n\n祝你生日快乐！\n\n银泰温暖团队';
+    }
     function batchGenerateWishes() {
       let count = 0;
       employees.value.forEach(emp => {
-        if (!emp.wish || emp.wishStatus === 'pending') {
+        if (!emp.wish || emp.wishStatus === 'generated' || emp.wishStatus === 'pending') {
           emp.wish = generateWishForEmployee(emp);
-          emp.wishStatus = 'pending';
+          emp.wishStatus = 'generated';
           count++;
         }
       });
@@ -210,30 +241,36 @@ const app = createApp({
 
     function regenerateWish(emp) {
       emp.wish = generateWishForEmployee(emp);
-      emp.wishStatus = 'pending';
+      emp.wishStatus = 'generated';
       saveData();
       ElementPlus.ElMessage.success('已重新生成');
     }
 
-    // ===== 提交给领导 =====
+    // ===== 提交给领导（带二次确认） =====
     function submitToLeader() {
       const wishEmployees = employees.value.filter(e => e.wish);
       if (wishEmployees.length === 0) {
         ElementPlus.ElMessage.warning('没有可提交的文案');
         return;
       }
-      const reviewData = wishEmployees.map(e => ({
-        name: e.name,
-        gender: e.gender,
-        birthMonth: e.birthMonth,
-        birthDay: e.birthDay || 1,
-        department: e.department || '',
-        wish: e.wish,
-        wishStatus: 'pending',
-        modifySource: ''
-      }));
-      localStorage.setItem('bws_leaderReviewData', JSON.stringify(reviewData));
-      ElementPlus.ElMessage.success(`已提交 ${reviewData.length} 条文案给领导审核`);
+      ElementPlus.ElMessageBox.confirm(
+        `确定将 ${wishEmployees.length} 条文案提交给领导审核吗？`,
+        '确认提交',
+        { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' }
+      ).then(() => {
+        const reviewData = wishEmployees.map(e => ({
+          name: e.name,
+          gender: e.gender,
+          birthMonth: e.birthMonth,
+          birthDay: e.birthDay || 1,
+          department: e.department || '',
+          wish: e.wish,
+          wishStatus: 'pending',
+          modifySource: ''
+        }));
+        localStorage.setItem('bws_leaderReviewData', JSON.stringify(reviewData));
+        ElementPlus.ElMessage.success(`已提交 ${reviewData.length} 条文案给领导审核`);
+      }).catch(() => {});
     }
 
     // ===== 文案库 =====
@@ -306,13 +343,12 @@ const app = createApp({
       const canvas = cardCanvas.value;
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
-      const W = 1920, H = 1080;
+      const W = 2000, H = 1056;
       canvas.width = W;
       canvas.height = H;
-      // 确保画布完全清空
       ctx.clearRect(0, 0, W, H);
 
-      // 绘制背景图
+      // 绘制背景图（1:1 原始尺寸）
       if (cardBgImage) {
         ctx.drawImage(cardBgImage, 0, 0, W, H);
       } else {
@@ -320,23 +356,26 @@ const app = createApp({
         ctx.fillRect(0, 0, W, H);
       }
 
-      // 统一字体
-      const fontSize = 32;
-      const lineHeight = 60;
-      const fontStr = fontSize + 'px "Microsoft YaHei", sans-serif';
+      // 统一字体参数（来自调试页确认值）
+      const fontSize = 36;
+      const lineHeight = 70;
+      const maxWidth = 620;
 
       // 称呼
       ctx.fillStyle = '#5C3D2E';
-      ctx.font = fontStr;
+      ctx.font = '36px "Microsoft YaHei", sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText('亲爱的' + emp.name, 120, 430);
+      ctx.fillText('亲爱的' + emp.name, 120, 420);
 
-      // 文案正文 - 自动换行
+      // 文案正文 - 自动换行，确保以"祝你生日快乐！"结尾
       ctx.fillStyle = '#6B4C3B';
-      ctx.font = fontStr;
-      const wishText = emp.wish || '祝你生日快乐！';
-      const wishLines = wrapText(ctx, wishText, 600);
-      let ty = 500;
+      ctx.font = fontSize + 'px "Microsoft YaHei", sans-serif';
+      let wishText = emp.wish || '';
+      if (!wishText.includes('祝你生日快乐')) {
+        wishText = (wishText || '').replace(/[\n\s]+$/, '') + '\n祝你生日快乐！';
+      }
+      const wishLines = wrapText(ctx, wishText, maxWidth);
+      let ty = 495;
       wishLines.forEach(line => {
         ctx.fillText(line, 120, ty);
         ty += lineHeight;
@@ -344,9 +383,9 @@ const app = createApp({
 
       // 落款
       ctx.fillStyle = '#5C3D2E';
-      ctx.font = fontStr;
+      ctx.font = '36px "Microsoft YaHei", sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText('银泰温暖团队', 700, 810);
+      ctx.fillText('银泰温暖团队', 720, 845);
       ctx.textAlign = 'left';
     }
 
@@ -394,9 +433,29 @@ const app = createApp({
       link.click();
     }
 
+    // 导出贺卡页 - 多选
+    function handleExportSelectionChange(selection) {
+      exportSelectedRows.value = selection;
+      exportAllSelected.value = selection.length === finalReviewData.value.length && finalReviewData.value.length > 0;
+    }
+
+    function toggleExportSelectAll() {
+      exportAllSelected.value = !exportAllSelected.value;
+      nextTick(() => {
+        if (exportAllSelected.value) {
+          exportSelectedRows.value = [...finalReviewData.value];
+        } else {
+          exportSelectedRows.value = [];
+        }
+      });
+    }
+
     // 一键导出所有贺卡
     async function exportAllCards() {
-      const wishEmployees = employees.value.filter(e => e.wish);
+      // 优先导出选中行，否则导出全部
+      const wishEmployees = exportSelectedRows.value.length > 0
+        ? exportSelectedRows.value
+        : finalReviewData.value;
       if (wishEmployees.length === 0) {
         ElementPlus.ElMessage.warning('没有可导出的贺卡');
         return;
@@ -406,55 +465,88 @@ const app = createApp({
 
       // 创建离屏 canvas
       const offCanvas = document.createElement('canvas');
-      offCanvas.width = 1920;
-      offCanvas.height = 1080;
+      offCanvas.width = 2000;
+      offCanvas.height = 1056;
       const offCtx = offCanvas.getContext('2d');
 
+      // 生成所有贺卡图片
+      const cardImages = [];
       for (let i = 0; i < wishEmployees.length; i++) {
         const emp = wishEmployees[i];
-        // 绘制背景
         if (cardBgImage) {
-          offCtx.drawImage(cardBgImage, 0, 0, 1920, 1080);
+          offCtx.drawImage(cardBgImage, 0, 0, 2000, 1056);
         } else {
           offCtx.fillStyle = '#FDF0E4';
-          offCtx.fillRect(0, 0, 1920, 1080);
+          offCtx.fillRect(0, 0, 2000, 1056);
         }
-        // 叠加文字（与 drawCard 一致）
-        const fontSize = 32;
-        const lineHeight = 60;
-        const fontStr = fontSize + 'px "Microsoft YaHei", sans-serif';
+        const fontSize = 36;
+        const lineHeight = 70;
+        const maxWidth = 620;
 
         offCtx.fillStyle = '#5C3D2E';
-        offCtx.font = fontStr;
+        offCtx.font = '36px "Microsoft YaHei", sans-serif';
         offCtx.textAlign = 'left';
-        offCtx.fillText('亲爱的' + emp.name, 120, 430);
+        offCtx.fillText('亲爱的' + emp.name, 120, 420);
 
         offCtx.fillStyle = '#6B4C3B';
-        offCtx.font = fontStr;
-        const wishLines = wrapText(offCtx, emp.wish, 600);
-        let ty = 500;
+        offCtx.font = fontSize + 'px "Microsoft YaHei", sans-serif';
+        let batchWishText = emp.wish || '';
+        if (!batchWishText.includes('祝你生日快乐')) {
+          batchWishText = (batchWishText || '').replace(/[\n\s]+$/, '') + '\n祝你生日快乐！';
+        }
+        const wishLines = wrapText(offCtx, batchWishText, maxWidth);
+        let ty = 495;
         wishLines.forEach(line => {
           offCtx.fillText(line, 120, ty);
           ty += lineHeight;
         });
 
         offCtx.fillStyle = '#5C3D2E';
-        offCtx.font = fontStr;
+        offCtx.font = '36px "Microsoft YaHei", sans-serif';
         offCtx.textAlign = 'right';
-        offCtx.fillText('银泰温暖团队', 700, 810);
+        offCtx.fillText('银泰温暖团队', 720, 845);
         offCtx.textAlign = 'left';
 
-        // 下载
-        const link = document.createElement('a');
-        link.download = `${emp.name}_生日贺卡.png`;
-        link.href = offCanvas.toDataURL('image/png');
-        link.click();
-
-        // 间隔一下避免浏览器阻止
-        await new Promise(r => setTimeout(r, 300));
+        // 获取 base64 数据
+        const dataUrl = offCanvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1];
+        cardImages.push({ name: emp.name + '_生日贺卡.png', data: base64 });
       }
+
+      // 下载逻辑：1张直接下载，2张以上打包为 zip
+      if (cardImages.length === 1) {
+        const link = document.createElement('a');
+        link.download = cardImages[0].name;
+        link.href = 'data:image/png;base64,' + cardImages[0].data;
+        link.click();
+      } else {
+        const zip = new JSZip();
+        const now = new Date();
+        const folderName = '导出' + (now.getMonth() + 1) + '月' + now.getDate() + '日-生日贺卡';
+        const folder = zip.folder(folderName);
+        cardImages.forEach(img => {
+          folder.file(img.name, img.data, { base64: true });
+        });
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const link = document.createElement('a');
+        link.download = folderName + '.zip';
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }
+
+      // 导出后更新状态为已导出
+      const exportedNames = new Set(wishEmployees.map(e => e.name));
+      employees.value.forEach(e => {
+        if (exportedNames.has(e.name) && (e.wishStatus === 'approved' || e.wishStatus === 'exported')) {
+          e.wishStatus = 'exported';
+        }
+      });
+      saveData();
       exportCardsLoading.value = false;
-      ElementPlus.ElMessage.success(`已导出 ${wishEmployees.length} 张贺卡`);
+      exportSelectedRows.value = [];
+      exportAllSelected.value = false;
+      ElementPlus.ElMessage.success(`已导出 ${cardImages.length} 张贺卡`);
     }
 
     // ===== 文案库选择（领导替换用） =====
@@ -476,7 +568,8 @@ const app = createApp({
     function replaceFromLibrary(template) {
       const emp = currentPickerEmployee.value;
       if (!emp) return;
-      emp.wish = `亲爱的${emp.name}\n\n${template.content}\n\n祝你生日快乐！\n\n银泰温暖团队`;
+      // 只替换文案正文，不带称呼和落款
+      emp.wish = template.content;
       template.usageCount++;
       // 同步到 reviewEmployees
       const reviewEmp = reviewEmployees.value.find(e => e.name === emp.name);
@@ -552,9 +645,51 @@ const app = createApp({
         ElementPlus.ElMessage.warning('没有可提交的审核结果');
         return;
       }
-      localStorage.setItem('bws_finalReviewData', JSON.stringify(reviewEmployees.value));
-      finalReviewData.value = JSON.parse(JSON.stringify(reviewEmployees.value));
-      ElementPlus.ElMessage.success('审核完成，管理员可在同步页查看结果');
+      ElementPlus.ElMessageBox.confirm(
+        `确认完成审核？未单独标记的文案将全部设为"已通过"。`,
+        '确认审核',
+        { type: 'warning', confirmButtonText: '确认审核', cancelButtonText: '取消' }
+      ).then(() => {
+        // 未单独标记的全部设为已通过
+        reviewEmployees.value.forEach(row => {
+          if (row.wishStatus !== 'approved') {
+            row.wishStatus = 'approved';
+            if (!row.modifySource) row.modifySource = '审核通过';
+          }
+        });
+        localStorage.setItem('bws_finalReviewData', JSON.stringify(reviewEmployees.value));
+        finalReviewData.value = JSON.parse(JSON.stringify(reviewEmployees.value));
+
+        // 自动同步到员工数据，无需管理员手动点击
+        let updateCount = 0;
+        finalReviewData.value.forEach(review => {
+          const emp = employees.value.find(e => e.name === review.name);
+          if (emp) {
+            emp.wish = review.wish;
+            emp.wishStatus = review.wishStatus === 'approved' ? 'approved' : emp.wishStatus;
+            emp.modifySource = review.modifySource || '领导审核';
+            updateCount++;
+          }
+        });
+
+        // 保存历史审核记录
+        const now = new Date();
+        const historyRecord = {
+          id: 'h' + Date.now(),
+          reviewTime: now.toLocaleString('zh-CN'),
+          exportDate: now.getFullYear() + '/' + (now.getMonth() + 1) + '/' + now.getDate(),
+          totalCount: reviewEmployees.value.length,
+          records: JSON.parse(JSON.stringify(reviewEmployees.value))
+        };
+        reviewHistory.value.unshift(historyRecord);
+
+        // 清除待审核缓存，避免重登后仍显示未审核
+        localStorage.removeItem('bws_leaderReviewData');
+        reviewEmployees.value = [];
+
+        saveData();
+        ElementPlus.ElMessage.success(`审核完成！已自动同步 ${updateCount} 条数据，可导出贺卡`);
+      }).catch(() => {});
     }
 
     // ===== 管理员同步 =====
@@ -563,23 +698,35 @@ const app = createApp({
     });
 
     function syncFromLeader() {
-      if (finalReviewData.value.length === 0) {
-        ElementPlus.ElMessage.warning('没有领导审核结果可同步');
-        return;
+      // 已改为自动同步，此函数保留兼容，手动调用时仅刷新 finalReviewData
+      const savedFinal = localStorage.getItem('bws_finalReviewData');
+      if (savedFinal) {
+        finalReviewData.value = JSON.parse(savedFinal);
+        ElementPlus.ElMessage.success('审核数据已刷新');
+      } else {
+        ElementPlus.ElMessage.warning('暂无领导审核结果');
       }
-      let updateCount = 0;
-      finalReviewData.value.forEach(review => {
-        const emp = employees.value.find(e => e.name === review.name);
-        if (emp) {
-          emp.wish = review.wish;
-          emp.wishStatus = review.wishStatus === 'approved' ? 'approved' : 'modified';
-          emp.modifySource = review.modifySource || '领导审核';
-          updateCount++;
-        }
-      });
-      saveData();
-      ElementPlus.ElMessage.success(`已同步 ${updateCount} 条审核结果`);
     }
+
+    // 删除历史记录
+    function deleteHistoryRecord(id) {
+      ElementPlus.ElMessageBox.confirm('确定删除该条历史记录吗？', '提示', { type: 'warning' }).then(() => {
+        const idx = reviewHistory.value.findIndex(h => h.id === id);
+        if (idx >= 0) {
+          reviewHistory.value.splice(idx, 1);
+          saveData();
+          ElementPlus.ElMessage.success('已删除');
+        }
+      }).catch(() => {});
+    }
+
+    const filteredHistory = computed(() => {
+      if (!historyFilter.keyword) return reviewHistory.value;
+      return reviewHistory.value.filter(h => {
+        return h.reviewTime.includes(historyFilter.keyword) ||
+          h.records.some(r => r.name.includes(historyFilter.keyword));
+      });
+    });
 
     // ===== Excel 导入导出 =====
     function downloadImportTemplate() {
@@ -642,7 +789,7 @@ const app = createApp({
         '月份': e.birthMonth,
         '日期': e.birthDay || 1,
         '部门': e.department || '',
-        '文案状态': e.wishStatus === 'approved' ? '已通过' : e.wishStatus === 'modified' ? '待修改' : '未生成'
+        '文案状态': e.wishStatus === 'exported' ? '已导出' : e.wishStatus === 'approved' ? '已审核' : e.wishStatus === 'generated' ? '已生成' : '未生成'
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -657,8 +804,8 @@ const app = createApp({
         '月份': e.birthMonth + '月',
         '日期': (e.birthDay || 1) + '日',
         '部门': e.department || '',
-        '祝福文案': e.wish,
-        '状态': e.wishStatus === 'approved' ? '已通过' : '待审核'
+        '祝福文案': formatWish(e),
+        '状态': e.wishStatus === 'exported' ? '已导出' : e.wishStatus === 'approved' ? '已审核' : e.wishStatus === 'generated' ? '已生成' : '待审核'
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       ws['!cols'] = [{ wch: 10 }, { wch: 6 }, { wch: 8 }, { wch: 8 }, { wch: 15 }, { wch: 60 }, { wch: 10 }];
@@ -720,7 +867,54 @@ const app = createApp({
       reader.readAsArrayBuffer(file.raw);
     }
 
+    // ===== 导出历史记录 Excel =====
+    function exportHistoryExcel() {
+      if (reviewHistory.value.length === 0) {
+        ElementPlus.ElMessage.warning('暂无历史记录可导出');
+        return;
+      }
+      const allRows = [];
+      reviewHistory.value.forEach(h => {
+        h.records.forEach(r => {
+          allRows.push({
+            '导出贺卡日期': h.exportDate || '-',
+            '审核时间': h.reviewTime,
+            '姓名': r.name,
+            '性别': r.gender === 'male' ? '男' : '女',
+            '月份': r.birthMonth + '月',
+            '日期': (r.birthDay || 1) + '日',
+            '部门': r.department || '',
+            '祝福文案': r.wish,
+            '状态': r.wishStatus === 'approved' ? '已审核' : '待修改',
+            '修改方式': r.modifySource || '-'
+          });
+        });
+      });
+      const ws = XLSX.utils.json_to_sheet(allRows);
+      ws['!cols'] = [{ wch: 14 }, { wch: 20 }, { wch: 10 }, { wch: 6 }, { wch: 8 }, { wch: 8 }, { wch: 15 }, { wch: 60 }, { wch: 10 }, { wch: 12 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '历史审核记录');
+      XLSX.writeFile(wb, '历史审核记录.xlsx');
+      ElementPlus.ElMessage.success('历史记录已导出');
+    }
+
+    // ===== 文案库导入模板下载 =====
+    function downloadWishLibraryTemplate() {
+      const templateData = [
+        { '文案内容': '愿你的每一天都充满阳光，每一刻都被幸福包围！', '适用性别': '通用', '适用季节': '通用', '标签': '温馨,祝福' },
+        { '文案内容': '春风十里，不如你的笑颜。愿新的一岁，花开满路！', '适用性别': '女', '适用季节': '春季', '标签': '诗意,浪漫' },
+        { '文案内容': '愿你的热情如夏日般永不消退，事业如阳光般灿烂！', '适用性别': '男', '适用季节': '夏季', '标签': '热情,事业' }
+      ];
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      ws['!cols'] = [{ wch: 60 }, { wch: 10 }, { wch: 10 }, { wch: 15 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '文案库');
+      XLSX.writeFile(wb, '文案库导入模板.xlsx');
+      ElementPlus.ElMessage.success('文案库模板已下载');
+    }
+
     function exportFinalExcel() {
+
       const data = employees.value.filter(e => e.wish).map(e => ({
         '姓名': e.name,
         '性别': e.gender === 'male' ? '男' : '女',
@@ -728,7 +922,7 @@ const app = createApp({
         '日期': (e.birthDay || 1) + '日',
         '部门': e.department || '',
         '祝福文案': e.wish,
-        '状态': e.wishStatus === 'approved' ? '已通过' : e.wishStatus === 'modified' ? '领导待修改' : '待审核',
+        '状态': e.wishStatus === 'exported' ? '已导出' : e.wishStatus === 'approved' ? '已审核' : e.wishStatus === 'generated' ? '已生成' : '未生成',
         '修改方式': e.modifySource || '-'
       }));
       const ws = XLSX.utils.json_to_sheet(data);
@@ -740,7 +934,7 @@ const app = createApp({
 
     return {
       isLoggedIn, currentUserRole, loginLoading, currentPage, loginForm,
-      employees, wishLibrary, reviewEmployees, finalReviewData,
+      employees, wishLibrary, reviewEmployees, finalReviewData, reviewHistory,
       showAddEmployee, showAddWishTemplate, showCardPreview, showWishPickerDialog,
       editingEmployeeIndex, currentPreviewEmployee, currentPickerEmployee, cardCanvas,
       exportCardsLoading,
@@ -748,18 +942,21 @@ const app = createApp({
       libraryFilter, pickerFilter,
       filteredLibrary,
       selectedRows, allSelected,
+      exportSelectedRows, exportAllSelected,
+      historyFilter, filteredHistory,
       hasLeaderReview,
       handleLogin, handleLogout,
       showAddEmployeeDialog, editEmployee, saveEmployee, deleteEmployee,
       batchGenerateWishes, regenerateWish,
       saveWishTemplate, deleteWishTemplate, filterLibrary,
       previewCard, downloadCard, exportAllCards,
+      handleExportSelectionChange, toggleExportSelectAll,
       showWishPicker, getPickerWishes, replaceFromLibrary,
       submitToLeader,
       loadReviewData, handleSelectionChange, selectAll,
-      onWishEdit, approveWish, batchApprove, completeReview,
-      syncFromLeader,
-      downloadImportTemplate,
+      onWishEdit, completeReview,
+      syncFromLeader, deleteHistoryRecord, exportHistoryExcel,
+      downloadImportTemplate, downloadWishLibraryTemplate,
       importEmployees, exportEmployees,
       exportWishesExcel,
       exportWishLibrary, importWishLibrary,
