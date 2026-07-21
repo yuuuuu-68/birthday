@@ -224,7 +224,6 @@
             <div class="page-actions">
               <el-button @click="toggleExportSelectAll" v-if="finalReviewData.length > 0">{{ exportAllSelected ? '取消全选' : '全选' }}</el-button>
               <el-button type="success" @click="exportAllCards" :disabled="finalReviewData.length === 0" :loading="exportCardsLoading">导出选中贺卡 ({{ exportSelectedRows.length || finalReviewData.length }})</el-button>
-              <el-button @click="exportFinalExcel" :disabled="!hasLeaderReview">导出最终版Excel</el-button>
             </div>
           </div>
           <el-alert v-if="!hasLeaderReview" title="领导尚未提交审核结果" type="info" :closable="false" show-icon style="margin-bottom:15px"></el-alert>
@@ -485,7 +484,7 @@
   <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/locale/zh-cn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="wishTemplates.js?v=13"></script>
-  <script src="app.js?v=13"></script>
+  <script src="wishTemplates.js?v=14"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
