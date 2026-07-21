@@ -54,6 +54,14 @@ const app = createApp({
       if (wishLibrary.value.length === 0) {
         wishLibrary.value = JSON.parse(JSON.stringify(DEFAULT_WISH_LIBRARY));
         saveData();
+      } else {
+        // 合并新增的模板（保留已有数据的使用次数）
+        const existingIds = new Set(wishLibrary.value.map(w => w.id));
+        const newTemplates = DEFAULT_WISH_LIBRARY.filter(w => !existingIds.has(w.id));
+        if (newTemplates.length > 0) {
+          wishLibrary.value.push(...JSON.parse(JSON.stringify(newTemplates)));
+          saveData();
+        }
       }
       // 预加载贺卡背景图
       loadCardBgImage();
