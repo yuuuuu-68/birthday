@@ -230,8 +230,6 @@
             <div class="page-actions">
               <el-button @click="toggleExportSelectAll" v-if="finalReviewData.length > 0">{{ exportAllSelected ? '取消全选' : '全选' }}</el-button>
               <el-button type="success" @click="exportAllCards" :disabled="finalReviewData.length === 0" :loading="exportCardsLoading">导出选中贺卡 ({{ exportSelectedRows.length || finalReviewData.length }})</el-button>
-              <el-button type="primary" @click="downloadCardImagesForCalendar" v-if="getDingTalkPending().length > 0">下载贺卡图片 ({{ getDingTalkPending().length }})</el-button>
-              <el-button type="warning" @click="clearDingTalkPending" v-if="getDingTalkPending().length > 0" plain>清除日程数据</el-button>
             </div>
           </div>
           <el-alert v-if="!hasLeaderReview" title="领导尚未提交审核结果" type="info" :closable="false" show-icon style="margin-bottom:15px"></el-alert>
@@ -266,7 +264,12 @@
           <!-- 钉钉日程待创建列表 -->
           <div v-if="getDingTalkPending().length > 0" style="margin-top:20px; padding:16px; background:#FFF8E1; border-radius:8px; border:1px solid #FFD54F;">
             <h3 style="margin:0 0 10px 0; color:#F57F17;">待创建钉钉日程 ({{ getDingTalkPending().length }} 条)</h3>
-            <div style="font-size:13px; color:#795548; margin-bottom:8px;">导出贺卡后可下载图片并创建钉钉日程。下载图片后请告诉我"创建钉钉日程"。</div>
+            <div style="font-size:13px; color:#795548; margin-bottom:12px;">操作步骤：1. 点击"下载贺卡图片"保存到本地 → 2. 点击"复制日程指令" → 3. 到钉钉发给 WorkBuddy，逐条发送即可自动创建日程</div>
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+              <el-button type="primary" @click="downloadCardImagesForCalendar">下载贺卡图片 ({{ getDingTalkPending().length }})</el-button>
+              <el-button type="success" @click="copyWorkBuddyCommands">复制日程指令到剪贴板</el-button>
+              <el-button @click="clearDingTalkPending" plain>清除日程数据</el-button>
+            </div>
             <el-table :data="getDingTalkPending()" border size="small" style="width:100%">
               <el-table-column prop="name" label="姓名" width="100"></el-table-column>
               <el-table-column label="生日" width="120">
@@ -278,8 +281,8 @@
               <el-table-column label="时间" width="120">
                 <template #default>8:30-9:00</template>
               </el-table-column>
-              <el-table-column label="参与人" width="100">
-                <template #default>俞佳婧</template>
+              <el-table-column label="贺卡文件">
+                <template #default="{ row }">{{ row.cardFileName }}</template>
               </el-table-column>
             </el-table>
           </div>
@@ -513,7 +516,7 @@
   <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/locale/zh-cn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="wishTemplates.js?v=20"></script>
-  <script src="app.6e85356b.js"></script>
+  <script src="wishTemplates.js?v=21"></script>
+  <script src="app.ba072c26.js"></script>
 </body>
 </html>
