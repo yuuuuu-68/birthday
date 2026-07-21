@@ -52,7 +52,7 @@ const app = createApp({
     onMounted(() => {
       loadData();
       // 检查是否需要合并新模板
-      const LIB_VERSION = 2; // 每次新增模板时+1
+      const LIB_VERSION = 3; // 每次新增/修改模板时+1
       const savedVersion = parseInt(localStorage.getItem('bws_libVersion') || '0');
       if (wishLibrary.value.length === 0) {
         wishLibrary.value = JSON.parse(JSON.stringify(DEFAULT_WISH_LIBRARY));
@@ -65,6 +65,23 @@ const app = createApp({
           wishLibrary.value.push(...JSON.parse(JSON.stringify(newTemplates)));
           saveData();
           ElementPlus.ElMessage.success(`文案库已更新，新增 ${newTemplates.length} 条模板`);
+        }
+        // 同步更新已有模板的内容（保留使用次数，更新文案内容）
+        const defaultMap = {};
+        DEFAULT_WISH_LIBRARY.forEach(w => { defaultMap[w.id] = w; });
+        let updatedCount = 0;
+        wishLibrary.value.forEach(w => {
+          if (defaultMap[w.id] && w.content !== defaultMap[w.id].content) {
+            w.content = defaultMap[w.id].content;
+            w.tags = defaultMap[w.id].tags;
+            updatedCount++;
+          }
+        });
+        if (updatedCount > 0) {
+          saveData();
+          if (!newTemplates.length) {
+            ElementPlus.ElMessage.success(`文案库已更新，${updatedCount} 条模板内容已同步`);
+          }
         }
       }
       localStorage.setItem('bws_libVersion', String(LIB_VERSION));
