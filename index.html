@@ -35,7 +35,12 @@
       <div class="sidebar">
         <div class="sidebar-header">
           <h2>生日祝福系统</h2>
-          <span class="role-badge">{{ currentUserRole === 'admin' ? 'admin' : 'leader' }}</span>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+            <span class="role-badge">{{ currentUserRole === 'admin' ? 'admin' : 'leader' }}</span>
+            <span v-if="syncStatus === 'syncing'" style="font-size:11px;color:#909399;">● 同步中...</span>
+            <span v-else-if="syncStatus === 'synced'" style="font-size:11px;color:#67C23A;">● 已同步</span>
+            <span v-else-if="syncStatus === 'error'" style="font-size:11px;color:#F56C6C;">● 同步失败</span>
+          </div>
         </div>
         <el-menu :default-active="currentPage" @select="currentPage = $event" class="sidebar-menu">
           <template v-if="currentUserRole === 'admin'">
@@ -484,7 +489,7 @@
   <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/locale/zh-cn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="wishTemplates.js?v=15"></script>
-  <script src="app.js?v=15"></script>
+  <script src="wishTemplates.js?v=16"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>
