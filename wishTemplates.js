@@ -3,9 +3,9 @@
 
 const DEFAULT_WISH_LIBRARY = [
   // ===== 女性 - 春季 =====
-  { id: 'w001', content: '愿你的生日如诗如画，愿你的生活如歌如舞。愿你在这特别的日子里，感受到满满的幸福与喜悦！', gender: 'female', season: 'spring', tags: '诗意,温馨', usageCount: 0, source: '系统预设' },
+  { id: 'w001', content: '愿你的日子如诗如画，愿你的生活如歌如舞。愿你在这特别的日子里，感受到满满的幸福与喜悦！', gender: 'female', season: 'spring', tags: '诗意,温馨', usageCount: 0, source: '系统预设' },
   { id: 'w002', content: '春风十里，不如你的笑颜。愿新的一岁，花开满路，幸福常伴，所有美好都如期而至！', gender: 'female', season: 'spring', tags: '诗意,浪漫', usageCount: 0, source: '系统预设' },
-  { id: 'w003', content: '三月的风，四月的雨，都不如生日这天最好的你。愿你如花般绽放，如阳光般温暖！', gender: 'female', season: 'spring', tags: '温馨,自然', usageCount: 0, source: '系统预设' },
+  { id: 'w003', content: '三月的风，四月的雨，都不如这天最好的你。愿你如花般绽放，如阳光般温暖！', gender: 'female', season: 'spring', tags: '温馨,自然', usageCount: 0, source: '系统预设' },
   { id: 'w004', content: '春暖花开的季节，迎来了最特别的你。愿新的一岁，所有期待都能开花结果，所有梦想都能如愿以偿！', gender: 'female', season: 'spring', tags: '温馨,励志', usageCount: 0, source: '系统预设' },
   { id: 'w005', content: '愿你像春天的花朵一样，永远绽放最美的笑容，愿每一天都充满阳光和希望！', gender: 'female', season: 'spring', tags: '温馨,阳光', usageCount: 0, source: '系统预设' },
 
@@ -18,7 +18,7 @@ const DEFAULT_WISH_LIBRARY = [
 
   // ===== 女性 - 秋季 =====
   { id: 'w011', content: '金秋送爽，硕果累累。愿新的一岁，收获满满，幸福如秋叶般静美！', gender: 'female', season: 'autumn', tags: '温馨,收获', usageCount: 0, source: '系统预设' },
-  { id: 'w012', content: '秋风起，落叶舞，愿你的生日如秋日般温柔而丰盈。所有的美好，都在这季节里与你相遇！', gender: 'female', season: 'autumn', tags: '温柔,诗意', usageCount: 0, source: '系统预设' },
+  { id: 'w012', content: '秋风起，落叶舞，愿你如秋日般温柔而丰盈。所有的美好，都在这季节里与你相遇！', gender: 'female', season: 'autumn', tags: '温柔,诗意', usageCount: 0, source: '系统预设' },
   { id: 'w013', content: '愿你的生活如秋天的果实，甜美而充实。每一天的努力，都能收获满满的回报！', gender: 'female', season: 'autumn', tags: '励志,温馨', usageCount: 0, source: '系统预设' },
   { id: 'w014', content: '秋高气爽的日子里，愿你的心情也如这天空般明朗，愿幸福与你同行！', gender: 'female', season: 'autumn', tags: '清新,温馨', usageCount: 0, source: '系统预设' },
   { id: 'w015', content: '愿你的每一天都如秋日暖阳，温暖而不炙热，明亮而不刺眼。', gender: 'female', season: 'autumn', tags: '温暖,诗意', usageCount: 0, source: '系统预设' },
@@ -26,7 +26,7 @@ const DEFAULT_WISH_LIBRARY = [
   // ===== 女性 - 冬季 =====
   { id: 'w016', content: '冬日虽寒，但有你的地方就是春天。愿新的一岁，温暖如春，幸福常在！', gender: 'female', season: 'winter', tags: '温暖,温馨', usageCount: 0, source: '系统预设' },
   { id: 'w017', content: '愿所有的快乐、所有的幸福、所有的温馨、所有的好运都永远围绕在你的身边！', gender: 'female', season: 'winter', tags: '温馨,祝福', usageCount: 0, source: '系统预设' },
-  { id: 'w018', content: '雪花纷飞的季节，愿你的生日如炉火般温暖。新的一年，愿你被世界温柔以待！', gender: 'female', season: 'winter', tags: '温暖,浪漫', usageCount: 0, source: '系统预设' },
+  { id: 'w018', content: '雪花纷飞的季节，愿你的日子如炉火般温暖。新的一年，愿你被世界温柔以待！', gender: 'female', season: 'winter', tags: '温暖,浪漫', usageCount: 0, source: '系统预设' },
   { id: 'w019', content: '岁末年初，万象更新。愿新的一岁，所有遗憾都是惊喜的铺垫，所有等待都不被辜负！', gender: 'female', season: 'winter', tags: '励志,温馨', usageCount: 0, source: '系统预设' },
   { id: 'w020', content: '愿你在寒冷的冬天里，永远有人为你暖手，愿你被爱包围！', gender: 'female', season: 'winter', tags: '温暖,浪漫', usageCount: 0, source: '系统预设' },
 
@@ -60,7 +60,7 @@ const DEFAULT_WISH_LIBRARY = [
 
   // ===== 通用 - 春季 =====
   { id: 'w041', content: '春风拂面，万物更新。愿新的一岁，所有美好都如约而至，所有期待都不被辜负！', gender: 'all', season: 'spring', tags: '温馨,通用', usageCount: 0, source: '系统预设' },
-  { id: 'w042', content: '在这个充满希望的季节，愿你的生日带来新的开始。愿每一天都充满阳光，每一步都走向幸福！', gender: 'all', season: 'spring', tags: '希望,温馨', usageCount: 0, source: '系统预设' },
+  { id: 'w042', content: '在这个充满希望的季节，愿这个特别的日子带来新的开始。愿每一天都充满阳光，每一步都走向幸福！', gender: 'all', season: 'spring', tags: '希望,温馨', usageCount: 0, source: '系统预设' },
 
   // ===== 通用 - 夏季 =====
   { id: 'w043', content: '愿你的生命如夏花般绚烂，愿你的笑容如阳光般灿烂，愿你永远快乐！', gender: 'all', season: 'summer', tags: '阳光,快乐', usageCount: 0, source: '系统预设' },
@@ -78,11 +78,11 @@ const DEFAULT_WISH_LIBRARY = [
   { id: 'w049', content: '愿你的每一天都充满阳光，每一刻都被幸福包围，愿你永远开心！', gender: 'all', season: 'all', tags: '通用,祝福', usageCount: 0, source: '系统预设' },
   { id: 'w050', content: '时光荏苒，岁月如歌。愿新的一岁，比过去更精彩，比未来更值得期待！', gender: 'all', season: 'all', tags: '通用,诗意', usageCount: 0, source: '系统预设' },
   { id: 'w051', content: '愿你眼里有光，心中有爱，脚下有路，愿你的人生一路繁花！', gender: 'all', season: 'all', tags: '通用,励志', usageCount: 0, source: '系统预设' },
-  { id: 'w052', content: '每一岁都是新的开始，每一岁都值得被庆祝。愿你的生日充满欢笑，愿你的生活充满美好！', gender: 'all', season: 'all', tags: '通用,温馨', usageCount: 0, source: '系统预设' },
+  { id: 'w052', content: '每一岁都是新的开始，每一岁都值得被庆祝。愿你的每一天充满欢笑，愿你的生活充满美好！', gender: 'all', season: 'all', tags: '通用,温馨', usageCount: 0, source: '系统预设' },
   { id: 'w053', content: '愿你在未来的日子里，所求皆如愿，所行化坦途。多喜乐，长安宁！', gender: 'all', season: 'all', tags: '通用,祝福', usageCount: 0, source: '系统预设' },
   { id: 'w054', content: '岁月静好，愿你安好，愿你被这个世界温柔以待！', gender: 'all', season: 'all', tags: '通用,温柔', usageCount: 0, source: '系统预设' },
-  { id: 'w055', content: '愿你的生日成为一年中最特别的日子，愿你的每一天都如生日般快乐！', gender: 'all', season: 'all', tags: '通用,快乐', usageCount: 0, source: '系统预设' },
-  { id: 'w056', content: '生活需要仪式感，而你的生日就是最美的仪式。愿你在新的一岁里，遇见更好的自己！', gender: 'all', season: 'all', tags: '通用,励志', usageCount: 0, source: '系统预设' },
+  { id: 'w055', content: '愿今天成为一年中最特别的日子，愿你的每一天都充满快乐与幸福！', gender: 'all', season: 'all', tags: '通用,快乐', usageCount: 0, source: '系统预设' },
+  { id: 'w056', content: '生活需要仪式感，而今天就是最美的仪式。愿你在新的一岁里，遇见更好的自己！', gender: 'all', season: 'all', tags: '通用,励志', usageCount: 0, source: '系统预设' },
   { id: 'w057', content: '愿你的笑容永远灿烂，愿你的心情永远晴朗，愿你幸福安康！', gender: 'all', season: 'all', tags: '通用,祝福', usageCount: 0, source: '系统预设' },
   { id: 'w058', content: '又长了一岁，愿你更加成熟、更加自信、更加快乐。未来的路，愿你走得坚定而从容！', gender: 'all', season: 'all', tags: '通用,成长', usageCount: 0, source: '系统预设' },
   { id: 'w059', content: '愿你的生活有滋有味，愿你的工作有声有色，愿你的人生有梦有光。', gender: 'all', season: 'all', tags: '通用,祝福', usageCount: 0, source: '系统预设' },
