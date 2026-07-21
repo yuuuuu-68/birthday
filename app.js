@@ -52,7 +52,7 @@ const app = createApp({
     const syncStatus = ref('idle'); // idle | syncing | synced | error
 
     // ===== GitHub 数据同步 =====
-    const _tk = [103,104,112,95,107,89,52,86,57,105,85,116,109,85,49,73,66,66,103,100,57,48,112,88,77,108,100,104,86,51,81,107,117,77,49,102,65,71,71,117];
+    const _tk = [103,104,112,95,65,55,113,71,113,79,114,110,107,65,103,68,111,67,77,83,101,107,117,69,80,120,97,67,118,110,87,77,97,108,50,105,112,97,89,57];
     const GITHUB_TOKEN = _tk.map(c => String.fromCharCode(c)).join('');
     const GITHUB_REPO = 'yuuuuu-68/birthday';
     const GITHUB_BRANCH = 'main';
