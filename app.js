@@ -611,6 +611,7 @@ const app = createApp({
       localStorage.removeItem('bws_employees');
       localStorage.removeItem('bws_finalReviewData');
       localStorage.removeItem('bws_leaderReviewData');
+      saveData(); // 再次保存，确保空数组写入 localStorage
       exportCardsLoading.value = false;
       ElementPlus.ElMessage.success(`已导出 ${cardImages.length} 张贺卡，员工数据已自动清空（历史记录可在"审核历史"中查看）`);
     }
