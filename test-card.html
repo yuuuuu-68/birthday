@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>贺卡文字排版调试</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/index.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: "Microsoft YaHei", sans-serif; background: #f5f5f5; padding: 20px; }
+    .layout { display: flex; gap: 20px; max-width: 1800px; margin: 0 auto; }
+    .controls { width: 360px; flex-shrink: 0; background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,.08); max-height: 90vh; overflow-y: auto; }
+    .preview-area { flex: 1; display: flex; flex-direction: column; align-items: center; }
+    canvas { width: 100%; max-width: 1000px; border: 2px solid #ddd; border-radius: 8px; background: #fff; }
+    h2 { margin-bottom: 15px; color: #333; }
+    h3 { margin: 12px 0 8px; color: #555; font-size: 14px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+    .slider-group { margin-bottom: 6px; }
+    .slider-group label { font-size: 12px; color: #666; display: flex; justify-content: space-between; }
+    .slider-group label span { color: #409EFF; font-weight: bold; }
+    .config-output { margin-top: 15px; background: #f0f2f5; border-radius: 8px; padding: 12px; font-size: 12px; font-family: monospace; white-space: pre-wrap; word-break: break-all; color: #333; }
+    .copy-btn { margin-top: 8px; width: 100%; }
+    .sample-text { margin-top: 10px; font-size: 12px; color: #888; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1 style="text-align:center; margin-bottom:20px; color:#333;">贺卡文字排版调试工具</h1>
+    <div class="layout">
+      <!-- 左侧控制面板 -->
+      <div class="controls">
+        <h2>参数调节</h2>
+
+        <h3>称呼（"亲爱的xxx"）</h3>
+        <div class="slider-group">
+          <label>X 坐标 <span>{{ params.greetingX }}</span></label>
+          <el-slider v-model="params.greetingX" :min="0" :max="1000" :step="5" @input="render"></el-slider>
+        </div>
+        <div class="slider-group">
+          <label>Y 坐标 <span>{{ params.greetingY }}</span></label>
+          <el-slider v-model="params.greetingY" :min="100" :max="600" :step="5" @input="render"></el-slider>
+        </div>
+
+        <h3>正文</h3>
+        <div class="slider-group">
+          <label>X 坐标 <span>{{ params.bodyX }}</span></label>
+          <el-slider v-model="params.bodyX" :min="0" :max="500" :step="5" @input="render"></el-slider>
+        </div>
+        <div class="slider-group">
+          <label>起始 Y 坐标 <span>{{ params.bodyStartY }}</span></label>
+          <el-slider v-model="params.bodyStartY" :min="200" :max="700" :step="5" @input="render"></el-slider>
+        </div>
+        <div class="slider-group">
+          <label>最大宽度 <span>{{ params.maxWidth }}</span></label>
+          <el-slider v-model="params.maxWidth" :min="200" :max="1800" :step="10" @input="render"></el-slider>
+        </div>
+
+        <h3>落款（"银泰温暖团队"）</h3>
+        <div class="slider-group">
+          <label>X 坐标（右对齐）<span>{{ params.signatureX }}</span></label>
+          <el-slider v-model="params.signatureX" :min="400" :max="1800" :step="5" @input="render"></el-slider>
+        </div>
+        <div class="slider-group">
+          <label>Y 坐标 <span>{{ params.signatureY }}</span></label>
+          <el-slider v-model="params.signatureY" :min="600" :max="1050" :step="5" @input="render"></el-slider>
+        </div>
+
+        <h3>全局字体</h3>
+        <div class="slider-group">
+          <label>字号 <span>{{ params.fontSize }}px</span></label>
+          <el-slider v-model="params.fontSize" :min="16" :max="60" :step="1" @input="render"></el-slider>
+        </div>
+        <div class="slider-group">
+          <label>行距 <span>{{ params.lineHeight }}px</span></label>
+          <el-slider v-model="params.lineHeight" :min="24" :max="80" :step="1" @input="render"></el-slider>
+        </div>
+        <div class="slider-group">
+          <label>称呼字号 <span>{{ params.greetingFontSize }}px</span></label>
+          <el-slider v-model="params.greetingFontSize" :min="20" :max="60" :step="1" @input="render"></el-slider>
+        </div>
+        <div class="slider-group">
+          <label>落款字号 <span>{{ params.signatureFontSize }}px</span></label>
+          <el-slider v-model="params.signatureFontSize" :min="20" :max="60" :step="1" @input="render"></el-slider>
+        </div>
+
+        <h3>示例文案</h3>
+        <el-select v-model="sampleIndex" @change="render" style="width:100%">
+          <el-option v-for="(s, i) in samples" :key="i" :label="'示例 ' + (i+1) + ': ' + s.name" :value="i"></el-option>
+        </el-select>
+        <p class="sample-text">当前文案: {{ samples[sampleIndex].wish }}</p>
+
+        <div class="config-output">{{ configJson }}</div>
+        <el-button class="copy-btn" type="primary" @click="copyConfig">复制参数配置</el-button>
+      </div>
+
+      <!-- 右侧预览 -->
+      <div class="preview-area">
+        <canvas ref="canvas" width="2000" height="1056"></canvas>
+        <p style="margin-top:10px; color:#999; font-size:13px;">Canvas: 2000 x 1056 | 底图原始尺寸 1:1 渲染</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/index.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/locale/zh-cn.min.js"></script>
+  <script>
+    const { createApp, ref, reactive, computed, onMounted, nextTick } = Vue;
+
+    const app = createApp({
+      setup() {
+        const canvas = ref(null);
+        const params = reactive({
+          greetingX: 100,
+          greetingY: 380,
+          bodyX: 100,
+          bodyStartY: 440,
+          maxWidth: 580,
+          signatureX: 650,
+          signatureY: 830,
+          fontSize: 30,
+          lineHeight: 48,
+          greetingFontSize: 30,
+          signatureFontSize: 30
+        });
+
+        const samples = [
+          { name: '女性·春季', wish: '在这个春暖花开的季节，愿你的笑容如花朵般绽放。生活处处是风景，每一天都是新的开始。愿新的一岁，你被世界温柔以待，梦想都能实现。祝你生日快乐！' },
+          { name: '男性·夏季', wish: '阳光正烈，热情正浓，正如你对生活的态度。愿你的每一天都充满活力，事业如日中天。新的一岁，愿所有的努力都不被辜负，所有的美好都如期而至。祝你生日快乐！' },
+          { name: '通用·简短', wish: '生日快乐！愿新的一岁健康平安，万事如意。祝你生日快乐！' }
+        ];
+        const sampleIndex = ref(0);
+
+        const cardBgImage = new Image();
+        cardBgImage.src = 'card-bg.png';
+
+        const configJson = computed(() => {
+          return JSON.stringify({
+            greetingX: params.greetingX,
+            greetingY: params.greetingY,
+            bodyX: params.bodyX,
+            bodyStartY: params.bodyStartY,
+            maxWidth: params.maxWidth,
+            signatureX: params.signatureX,
+            signatureY: params.signatureY,
+            fontSize: params.fontSize,
+            lineHeight: params.lineHeight,
+            greetingFontSize: params.greetingFontSize,
+            signatureFontSize: params.signatureFontSize
+          }, null, 2);
+        });
+
+        function wrapText(ctx, text, maxWidth) {
+          const lines = [];
+          const paragraphs = text.split('\n');
+          paragraphs.forEach(para => {
+            if (para.trim() === '') { lines.push(''); return; }
+            let currentLine = '';
+            for (const char of para) {
+              const testLine = currentLine + char;
+              const metrics = ctx.measureText(testLine);
+              if (metrics.width > maxWidth && currentLine) {
+                lines.push(currentLine);
+                currentLine = char;
+              } else {
+                currentLine = testLine;
+              }
+            }
+            if (currentLine) lines.push(currentLine);
+          });
+          return lines;
+        }
+
+        function render() {
+          const c = canvas.value;
+          if (!c) return;
+          const ctx = c.getContext('2d');
+          const W = 2000, H = 1056;
+          ctx.clearRect(0, 0, W, H);
+
+          // 绘制背景
+          if (cardBgImage.complete && cardBgImage.naturalWidth > 0) {
+            ctx.drawImage(cardBgImage, 0, 0, W, H);
+          } else {
+            ctx.fillStyle = '#FDF0E4';
+            ctx.fillRect(0, 0, W, H);
+          }
+
+          const sample = samples[sampleIndex.value];
+          const fontStr = params.fontSize + 'px "Microsoft YaHei", sans-serif';
+
+          // 称呼
+          ctx.fillStyle = '#5C3D2E';
+          ctx.font = params.greetingFontSize + 'px "Microsoft YaHei", sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText('亲爱的' + sample.name, params.greetingX, params.greetingY);
+
+          // 正文
+          ctx.fillStyle = '#6B4C3B';
+          ctx.font = fontStr;
+          let wishText = sample.wish;
+          if (!wishText.includes('祝你生日快乐')) {
+            wishText = wishText.replace(/[\n\s]+$/, '') + '\n祝你生日快乐！';
+          }
+          const wishLines = wrapText(ctx, wishText, params.maxWidth);
+          let ty = params.bodyStartY;
+          wishLines.forEach(line => {
+            ctx.fillText(line, params.bodyX, ty);
+            ty += params.lineHeight;
+          });
+
+          // 落款
+          ctx.fillStyle = '#5C3D2E';
+          ctx.font = params.signatureFontSize + 'px "Microsoft YaHei", sans-serif';
+          ctx.textAlign = 'right';
+          ctx.fillText('银泰温暖团队', params.signatureX, params.signatureY);
+          ctx.textAlign = 'left';
+        }
+
+        function copyConfig() {
+          navigator.clipboard.writeText(configJson.value).then(() => {
+            ElementPlus.ElMessage.success('参数已复制到剪贴板');
+          }).catch(() => {
+            // fallback
+            const ta = document.createElement('textarea');
+            ta.value = configJson.value;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            ElementPlus.ElMessage.success('参数已复制到剪贴板');
+          });
+        }
+
+        onMounted(() => {
+          cardBgImage.onload = () => render();
+          cardBgImage.onerror = () => render();
+          nextTick(() => render());
+        });
+
+        return { canvas, params, samples, sampleIndex, configJson, render, copyConfig };
+      }
+    });
+
+    app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
+    app.mount('#app');
+  </script>
+</body>
+</html>
