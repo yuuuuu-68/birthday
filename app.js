@@ -51,18 +51,23 @@ const app = createApp({
     // ===== 初始化 =====
     onMounted(() => {
       loadData();
+      // 检查是否需要合并新模板
+      const LIB_VERSION = 2; // 每次新增模板时+1
+      const savedVersion = parseInt(localStorage.getItem('bws_libVersion') || '0');
       if (wishLibrary.value.length === 0) {
         wishLibrary.value = JSON.parse(JSON.stringify(DEFAULT_WISH_LIBRARY));
         saveData();
-      } else {
+      } else if (savedVersion < LIB_VERSION) {
         // 合并新增的模板（保留已有数据的使用次数）
         const existingIds = new Set(wishLibrary.value.map(w => w.id));
         const newTemplates = DEFAULT_WISH_LIBRARY.filter(w => !existingIds.has(w.id));
         if (newTemplates.length > 0) {
           wishLibrary.value.push(...JSON.parse(JSON.stringify(newTemplates)));
           saveData();
+          ElementPlus.ElMessage.success(`文案库已更新，新增 ${newTemplates.length} 条模板`);
         }
       }
+      localStorage.setItem('bws_libVersion', String(LIB_VERSION));
       // 预加载贺卡背景图
       loadCardBgImage();
       // 领导登录时自动加载审核数据
