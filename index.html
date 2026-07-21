@@ -42,7 +42,7 @@
             <el-menu-item index="dashboard">👥 员工管理</el-menu-item>
             <el-menu-item index="generate">✏️ 文案生成</el-menu-item>
             <el-menu-item index="library">📚 文案库管理</el-menu-item>
-            <el-menu-item index="sync">📋 同步审核页</el-menu-item>
+            <el-menu-item index="sync">📋 导出贺卡</el-menu-item>
           </template>
           <template v-if="currentUserRole === 'leader'">
             <el-menu-item index="review">📋 文案审核</el-menu-item>
@@ -82,8 +82,8 @@
             <el-table-column prop="department" label="部门" width="150"></el-table-column>
             <el-table-column prop="wishStatus" label="文案状态" width="120">
               <template #default="{ row }">
-                <el-tag :type="row.wishStatus === 'approved' ? 'success' : row.wishStatus === 'modified' ? 'warning' : 'info'" size="small">
-                  {{ row.wishStatus === 'approved' ? '已通过' : row.wishStatus === 'modified' ? '待修改' : '未生成' }}
+                <el-tag :type="row.wishStatus === 'exported' ? 'info' : row.wishStatus === 'approved' ? 'success' : row.wishStatus === 'generated' ? '' : 'info'" size="small">
+                  {{ row.wishStatus === 'exported' ? '已导出' : row.wishStatus === 'approved' ? '已审核' : row.wishStatus === 'generated' ? '已生成' : '未生成' }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -102,7 +102,6 @@
             <h2>文案生成与贺卡预览</h2>
             <div class="page-actions">
               <el-button type="primary" @click="batchGenerateWishes" :disabled="employees.length === 0">一键生成文案</el-button>
-              <el-button type="success" @click="exportAllCards" :disabled="employees.filter(e => e.wish).length === 0" :loading="exportCardsLoading">一键导出所有贺卡</el-button>
               <el-button type="warning" @click="submitToLeader" :disabled="employees.filter(e => e.wish).length === 0">确认提交给领导</el-button>
               <el-button @click="downloadImportTemplate">下载导入模板</el-button>
               <el-upload action="#" :auto-upload="false" :on-change="importEmployees" accept=".xlsx,.xls" :show-file-list="false">
@@ -144,6 +143,7 @@
             <h2>文案库管理</h2>
             <div class="page-actions">
               <el-button type="primary" @click="showAddWishTemplate = true">新增文案</el-button>
+              <el-button @click="downloadWishLibraryTemplate">下载导入模板</el-button>
               <el-upload action="#" :auto-upload="false" :on-change="importWishLibrary" accept=".xlsx,.xls" :show-file-list="false">
                 <el-button>导入文案库</el-button>
               </el-upload>
@@ -207,21 +207,33 @@
         <!-- 管理员 - 同步页 -->
         <div v-if="currentPage === 'sync'" class="page-content">
           <div class="page-header">
-            <h2>同步领导审核结果</h2>
+            <h2>导出贺卡</h2>
             <div class="page-actions">
-              <el-button type="primary" @click="syncFromLeader" :disabled="!hasLeaderReview">一键同步领导审核结果</el-button>
-              <el-button @click="exportFinalExcel">导出最终版Excel</el-button>
+              <el-button @click="toggleExportSelectAll" v-if="finalReviewData.length > 0">{{ exportAllSelected ? '取消全选' : '全选' }}</el-button>
+              <el-button type="success" @click="exportAllCards" :disabled="finalReviewData.length === 0" :loading="exportCardsLoading">导出选中贺卡 ({{ exportSelectedRows.length || finalReviewData.length }})</el-button>
+              <el-button @click="exportFinalExcel" :disabled="!hasLeaderReview">导出最终版Excel</el-button>
             </div>
           </div>
           <el-alert v-if="!hasLeaderReview" title="领导尚未提交审核结果" type="info" :closable="false" show-icon style="margin-bottom:15px"></el-alert>
-          <el-alert v-if="hasLeaderReview" :title="'领导已提交审核结果，共 ' + finalReviewData.length + ' 条记录'" type="success" :closable="false" show-icon style="margin-bottom:15px"></el-alert>
-          <el-table :data="finalReviewData" border stripe style="width:100%">
+          <el-alert v-if="hasLeaderReview" :title="'领导已审核通过，共 ' + finalReviewData.length + ' 条记录，可导出贺卡'" type="success" :closable="false" show-icon style="margin-bottom:15px"></el-alert>
+          <el-table :data="finalReviewData" border stripe style="width:100%" @selection-change="handleExportSelectionChange">
+            <el-table-column type="selection" width="55"></el-table-column>
             <el-table-column prop="name" label="姓名" width="100"></el-table-column>
+            <el-table-column prop="gender" label="性别" width="70">
+              <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+            </el-table-column>
+            <el-table-column prop="birthMonth" label="月份" width="70">
+              <template #default="{ row }">{{ row.birthMonth }}月</template>
+            </el-table-column>
+            <el-table-column prop="birthDay" label="日期" width="70">
+              <template #default="{ row }">{{ row.birthDay || '-' }}日</template>
+            </el-table-column>
+            <el-table-column prop="department" label="部门" width="120"></el-table-column>
             <el-table-column prop="wish" label="祝福文案" min-width="300"></el-table-column>
-            <el-table-column prop="wishStatus" label="状态" width="120">
+            <el-table-column prop="wishStatus" label="状态" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.wishStatus === 'approved' ? 'success' : 'warning'" size="small">
-                  {{ row.wishStatus === 'approved' ? '已通过' : '待修改' }}
+                  {{ row.wishStatus === 'approved' ? '已审核' : '待修改' }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -230,6 +242,48 @@
             </el-table-column>
           </el-table>
           <el-empty v-if="employees.filter(e => e.wish).length === 0 && !hasLeaderReview" description="暂无数据"></el-empty>
+
+          <!-- 管理员历史审核记录 -->
+          <div v-if="reviewHistory.length > 0" style="margin-top:30px">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+              <h3 style="color:#333;">📜 历史审核记录</h3>
+              <el-button type="success" size="small" @click="exportHistoryExcel">导出历史记录Excel</el-button>
+            </div>
+            <el-collapse accordion>
+              <el-collapse-item v-for="h in filteredHistory" :key="h.id">
+                <template #title>
+                  <span>审核时间: {{ h.reviewTime }} | 导出贺卡日期: {{ h.exportDate || '-' }} — 共 {{ h.totalCount }} 条文案</span>
+                </template>
+                <el-table :data="h.records" border stripe size="small" style="width:100%">
+                  <el-table-column prop="name" label="姓名" width="80"></el-table-column>
+                  <el-table-column prop="gender" label="性别" width="60">
+                    <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+                  </el-table-column>
+                  <el-table-column prop="birthMonth" label="月份" width="60">
+                    <template #default="{ row }">{{ row.birthMonth }}月</template>
+                  </el-table-column>
+                  <el-table-column prop="birthDay" label="日期" width="60">
+                    <template #default="{ row }">{{ row.birthDay || '-' }}日</template>
+                  </el-table-column>
+                  <el-table-column prop="department" label="部门" width="100"></el-table-column>
+                  <el-table-column prop="wish" label="祝福文案" min-width="250"></el-table-column>
+                  <el-table-column prop="wishStatus" label="状态" width="80">
+                    <template #default="{ row }">
+                      <el-tag :type="row.wishStatus === 'approved' ? 'success' : 'warning'" size="small">
+                        {{ row.wishStatus === 'approved' ? '已审核' : '待修改' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="modifySource" label="修改方式" width="100">
+                    <template #default="{ row }">{{ row.modifySource || '-' }}</template>
+                  </el-table-column>
+                </el-table>
+                <div style="text-align:right; margin-top:8px;">
+                  <el-button size="small" type="danger" @click="deleteHistoryRecord(h.id)">删除此记录</el-button>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
+          </div>
         </div>
 
         <!-- 领导 - 审核页 -->
@@ -238,10 +292,10 @@
             <h2>文案审核</h2>
             <div class="page-actions">
               <el-button @click="selectAll" v-if="reviewEmployees.length > 0">{{ allSelected ? '取消全选' : '全选' }}</el-button>
-              <el-button type="success" @click="batchApprove" :disabled="selectedRows.length === 0">批量通过 ({{ selectedRows.length }})</el-button>
-              <el-button type="primary" @click="completeReview" :disabled="reviewEmployees.length === 0">完成审核</el-button>
+              <el-button type="primary" @click="completeReview" :disabled="reviewEmployees.length === 0">确认审核</el-button>
             </div>
           </div>
+          <el-alert title="你可以直接编辑文案或从文案库替换。点击“确认审核”时，所有文案将标记为“已通过”。" type="info" :closable="false" show-icon style="margin-bottom:15px" v-if="reviewEmployees.length > 0"></el-alert>
           <el-table :data="reviewEmployees" border stripe style="width:100%" @selection-change="handleSelectionChange">
             <el-table-column type="selection" width="55"></el-table-column>
             <el-table-column prop="name" label="姓名" width="100"></el-table-column>
@@ -260,10 +314,9 @@
                 <el-input type="textarea" v-model="row.wish" :rows="3" @change="onWishEdit(row)"></el-input>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="200">
+            <el-table-column label="操作" width="150">
               <template #default="{ row }">
                 <el-button size="small" @click="showWishPicker(row)">从文案库替换</el-button>
-                <el-button size="small" type="success" @click="approveWish(row)">通过</el-button>
               </template>
             </el-table-column>
             <el-table-column prop="wishStatus" label="状态" width="100">
@@ -275,6 +328,42 @@
             </el-table-column>
           </el-table>
           <el-empty v-if="reviewEmployees.length === 0" description="暂无待审核文案，请等待管理员提交"></el-empty>
+
+          <!-- 领导历史审核记录 -->
+          <div v-if="reviewHistory.length > 0" style="margin-top:30px">
+            <h3 style="margin-bottom:15px; color:#333;">📜 历史审核记录</h3>
+            <el-collapse accordion>
+              <el-collapse-item v-for="h in filteredHistory" :key="h.id">
+                <template #title>
+                  <span>审核时间: {{ h.reviewTime }} | 导出贺卡日期: {{ h.exportDate || '-' }} — 共 {{ h.totalCount }} 条文案</span>
+                </template>
+                <el-table :data="h.records" border stripe size="small" style="width:100%">
+                  <el-table-column prop="name" label="姓名" width="80"></el-table-column>
+                  <el-table-column prop="gender" label="性别" width="60">
+                    <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+                  </el-table-column>
+                  <el-table-column prop="birthMonth" label="月份" width="60">
+                    <template #default="{ row }">{{ row.birthMonth }}月</template>
+                  </el-table-column>
+                  <el-table-column prop="birthDay" label="日期" width="60">
+                    <template #default="{ row }">{{ row.birthDay || '-' }}日</template>
+                  </el-table-column>
+                  <el-table-column prop="department" label="部门" width="100"></el-table-column>
+                  <el-table-column prop="wish" label="祝福文案" min-width="250"></el-table-column>
+                  <el-table-column prop="wishStatus" label="状态" width="80">
+                    <template #default="{ row }">
+                      <el-tag :type="row.wishStatus === 'approved' ? 'success' : 'warning'" size="small">
+                        {{ row.wishStatus === 'approved' ? '已审核' : '待修改' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="modifySource" label="修改方式" width="100">
+                    <template #default="{ row }">{{ row.modifySource || '-' }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-collapse-item>
+            </el-collapse>
+          </div>
         </div>
       </div>
     </div>
@@ -342,7 +431,7 @@
     <!-- 贺卡预览弹窗 -->
     <el-dialog v-model="showCardPreview" title="贺卡预览" width="900px" destroy-on-close>
       <div class="card-preview-container">
-        <canvas ref="cardCanvas" width="1920" height="1080" style="width:100%; border:1px solid #eee; border-radius:8px;"></canvas>
+        <canvas ref="cardCanvas" width="2000" height="1056" style="width:100%; border:1px solid #eee; border-radius:8px;"></canvas>
       </div>
       <template #footer>
         <el-button @click="showCardPreview = false">关闭</el-button>
@@ -382,7 +471,8 @@
   <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/index.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.1/dist/locale/zh-cn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="wishTemplates.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="wishTemplates.js?v=8"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>
