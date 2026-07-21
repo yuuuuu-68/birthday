@@ -760,6 +760,31 @@ const app = createApp({
       localStorage.removeItem('bws_dingtalkPending');
     }
 
+    function copyWorkBuddyCommands() {
+      const pending = JSON.parse(localStorage.getItem('bws_dingtalkPending') || '[]');
+      if (pending.length === 0) {
+        ElementPlus.ElMessage.warning('没有待创建的日程');
+        return;
+      }
+      const year = new Date().getFullYear();
+      const commands = pending.map(item => {
+        return `帮我创建一个日程，标题"${item.name}生日"，时间${year}年${item.birthMonth}月${item.birthDay}日8:30到9:00，参与人俞佳婧，提前15分钟提醒，附件使用文件"${item.cardFileName}"`;
+      });
+      const text = commands.join('\n\n');
+      navigator.clipboard.writeText(text).then(() => {
+        ElementPlus.ElMessage.success(`已复制 ${pending.length} 条日程指令到剪贴板，请到钉钉发给 WorkBuddy`);
+      }).catch(() => {
+        // fallback
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        ElementPlus.ElMessage.success(`已复制 ${pending.length} 条日程指令到剪贴板`);
+      });
+    }
+
     // ===== 文案库选择（领导替换用） =====
     function showWishPicker(emp) {
       currentPickerEmployee.value = emp;
@@ -1144,7 +1169,7 @@ const app = createApp({
       batchGenerateWishes, regenerateWish,
       saveWishTemplate, deleteWishTemplate, filterLibrary,
       previewCard, downloadCard, exportAllCards,
-      downloadCardImagesForCalendar, getDingTalkPending, clearDingTalkPending,
+      downloadCardImagesForCalendar, getDingTalkPending, clearDingTalkPending, copyWorkBuddyCommands,
       handleExportSelectionChange, toggleExportSelectAll,
       showWishPicker, getPickerWishes, replaceFromLibrary,
       submitToLeader, handleSubmitSelectionChange,
