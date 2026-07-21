@@ -48,6 +48,10 @@ const app = createApp({
     // 提交页 - 勾选
     const submitSelectedRows = ref([]);
 
+    // 钉钉日程待创建列表
+    const dingtalkPending = ref([]);
+    const dingtalkCreating = ref(false);
+
     // 历史审核记录筛选
     const historyFilter = reactive({ keyword: '' });
 
@@ -704,6 +708,16 @@ const app = createApp({
       reviewHistory.value.unshift(historyRecord);
       saveData();
 
+      // 保存钉钉日程待创建数据（在清空前）
+      dingtalkPending.value = cardImages.map((img, i) => ({
+        name: wishEmployees[i].name,
+        birthMonth: wishEmployees[i].birthMonth,
+        birthDay: wishEmployees[i].birthDay || 1,
+        cardImageBase64: img.data,
+        cardFileName: img.name
+      }));
+      localStorage.setItem('bws_dingtalkPending', JSON.stringify(dingtalkPending.value));
+
       // 自动清空员工数据和审核数据
       employees.value = [];
       finalReviewData.value = [];
@@ -716,6 +730,34 @@ const app = createApp({
       syncToGitHub(true); // 立即同步到 GitHub（跳过防抖）
       exportCardsLoading.value = false;
       ElementPlus.ElMessage.success(`已导出 ${cardImages.length} 张贺卡，员工数据已自动清空（历史记录可在"审核历史"中查看）`);
+    }
+
+    // ===== 钉钉日程自动化 =====
+    function downloadCardImagesForCalendar() {
+      // 将待创建日程的贺卡图片逐个下载到本地
+      const pending = JSON.parse(localStorage.getItem('bws_dingtalkPending') || '[]');
+      if (pending.length === 0) {
+        ElementPlus.ElMessage.warning('没有待创建的钉钉日程');
+        return;
+      }
+      pending.forEach((item, i) => {
+        setTimeout(() => {
+          const link = document.createElement('a');
+          link.download = item.cardFileName;
+          link.href = 'data:image/png;base64,' + item.cardImageBase64;
+          link.click();
+        }, i * 800);
+      });
+      ElementPlus.ElMessage.success(`正在下载 ${pending.length} 张贺卡图片，下载完成后请点击"创建钉钉日程"`);
+    }
+
+    function getDingTalkPending() {
+      return JSON.parse(localStorage.getItem('bws_dingtalkPending') || '[]');
+    }
+
+    function clearDingTalkPending() {
+      dingtalkPending.value = [];
+      localStorage.removeItem('bws_dingtalkPending');
     }
 
     // ===== 文案库选择（领导替换用） =====
@@ -1094,6 +1136,7 @@ const app = createApp({
       selectedRows, allSelected,
       exportSelectedRows, exportAllSelected,
       submitSelectedRows,
+      dingtalkPending, dingtalkCreating,
       historyFilter, filteredHistory,
       hasLeaderReview,
       handleLogin, handleLogout,
@@ -1101,6 +1144,7 @@ const app = createApp({
       batchGenerateWishes, regenerateWish,
       saveWishTemplate, deleteWishTemplate, filterLibrary,
       previewCard, downloadCard, exportAllCards,
+      downloadCardImagesForCalendar, getDingTalkPending, clearDingTalkPending,
       handleExportSelectionChange, toggleExportSelectAll,
       showWishPicker, getPickerWishes, replaceFromLibrary,
       submitToLeader, handleSubmitSelectionChange,
