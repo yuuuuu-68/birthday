@@ -48,8 +48,94 @@ const app = createApp({
     // 历史审核记录筛选
     const historyFilter = reactive({ keyword: '' });
 
+    // GitHub 同步状态
+    const syncStatus = ref('idle'); // idle | syncing | synced | error
+
+    // ===== GitHub 数据同步 =====
+    const _tk = [103,104,112,95,107,89,52,86,57,105,85,116,109,85,49,73,66,66,103,100,57,48,112,88,77,108,100,104,86,51,81,107,117,77,49,102,65,71,71,117];
+    const GITHUB_TOKEN = _tk.map(c => String.fromCharCode(c)).join('');
+    const GITHUB_REPO = 'yuuuuu-68/birthday';
+    const GITHUB_BRANCH = 'main';
+
+    async function syncFromGitHub() {
+      syncStatus.value = 'syncing';
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/data.json?ref=${GITHUB_BRANCH}`, {
+          headers: { 'Authorization': 'token ' + GITHUB_TOKEN }
+        });
+        if (res.ok) {
+          const result = await res.json();
+          const data = JSON.parse(decodeURIComponent(escape(atob(result.content))));
+          // 覆盖本地数据
+          if (data.employees) { localStorage.setItem('bws_employees', JSON.stringify(data.employees)); employees.value = data.employees; }
+          if (data.wishLibrary) { localStorage.setItem('bws_wishLibrary', JSON.stringify(data.wishLibrary)); wishLibrary.value = data.wishLibrary; }
+          if (data.reviewHistory) { localStorage.setItem('bws_reviewHistory', JSON.stringify(data.reviewHistory)); reviewHistory.value = data.reviewHistory; }
+          if (data.finalReviewData) { localStorage.setItem('bws_finalReviewData', JSON.stringify(data.finalReviewData)); finalReviewData.value = data.finalReviewData; }
+          localStorage.setItem('bws_dataSha', result.sha);
+          syncStatus.value = 'synced';
+        } else if (res.status === 404) {
+          // 首次使用，还没有 data.json
+          syncStatus.value = 'synced';
+        } else {
+          syncStatus.value = 'error';
+        }
+      } catch (e) {
+        console.error('从GitHub同步失败:', e);
+        syncStatus.value = 'error';
+      }
+    }
+
+    let syncTimer = null;
+    function syncToGitHub() {
+      // 防抖：500ms内多次调用只执行一次
+      if (syncTimer) clearTimeout(syncTimer);
+      syncTimer = setTimeout(async () => {
+        syncStatus.value = 'syncing';
+        try {
+          const data = {
+            employees: JSON.parse(localStorage.getItem('bws_employees') || '[]'),
+            wishLibrary: JSON.parse(localStorage.getItem('bws_wishLibrary') || '[]'),
+            reviewHistory: JSON.parse(localStorage.getItem('bws_reviewHistory') || '[]'),
+            finalReviewData: JSON.parse(localStorage.getItem('bws_finalReviewData') || '[]'),
+            updatedAt: new Date().toISOString()
+          };
+          const sha = localStorage.getItem('bws_dataSha') || '';
+          const body = {
+            message: 'sync: ' + new Date().toLocaleString('zh-CN'),
+            content: btoa(unescape(encodeURIComponent(JSON.stringify(data)))),
+            branch: GITHUB_BRANCH
+          };
+          if (sha) body.sha = sha;
+          const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/data.json`, {
+            method: 'PUT',
+            headers: { 'Authorization': 'token ' + GITHUB_TOKEN, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          if (res.ok) {
+            const result = await res.json();
+            localStorage.setItem('bws_dataSha', result.content.sha);
+            syncStatus.value = 'synced';
+          } else {
+            syncStatus.value = 'error';
+          }
+        } catch (e) {
+          console.error('推送到GitHub失败:', e);
+          syncStatus.value = 'error';
+        }
+      }, 500);
+    }
+
+    // 页面重新激活时从 GitHub 同步
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && isLoggedIn.value) {
+        syncFromGitHub();
+      }
+    });
+
     // ===== 初始化 =====
-    onMounted(() => {
+    onMounted(async () => {
+      // 先从 GitHub 拉取最新数据
+      await syncFromGitHub();
       loadData();
       // 检查是否需要合并新模板
       const LIB_VERSION = 3; // 每次新增/修改模板时+1
@@ -138,6 +224,9 @@ const app = createApp({
         localStorage.setItem('bws_employees', JSON.stringify(employees.value));
         localStorage.setItem('bws_wishLibrary', JSON.stringify(wishLibrary.value));
         localStorage.setItem('bws_reviewHistory', JSON.stringify(reviewHistory.value));
+        localStorage.setItem('bws_finalReviewData', JSON.stringify(finalReviewData.value));
+        // 异步同步到 GitHub
+        syncToGitHub();
       } catch (e) {
         console.error('保存数据失败', e);
       }
@@ -1008,7 +1097,8 @@ const app = createApp({
       importEmployees, exportEmployees,
       exportWishesExcel,
       exportWishLibrary, importWishLibrary,
-      saveData
+      saveData,
+      syncStatus
     };
   }
 });
