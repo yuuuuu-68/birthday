@@ -581,18 +581,38 @@ const app = createApp({
         URL.revokeObjectURL(link.href);
       }
 
-      // 导出后更新状态为已导出
+      // 导出后更新状态为已导出，并保存历史记录
       const exportedNames = new Set(wishEmployees.map(e => e.name));
+      const exportedRecords = [];
       employees.value.forEach(e => {
         if (exportedNames.has(e.name) && (e.wishStatus === 'approved' || e.wishStatus === 'exported')) {
           e.wishStatus = 'exported';
+          exportedRecords.push(JSON.parse(JSON.stringify(e)));
         }
       });
+
+      // 保存导出记录到历史
+      const now = new Date();
+      const historyRecord = {
+        id: 'h' + Date.now(),
+        reviewTime: now.toLocaleString('zh-CN'),
+        exportDate: now.getFullYear() + '/' + (now.getMonth() + 1) + '/' + now.getDate(),
+        totalCount: exportedRecords.length,
+        records: exportedRecords
+      };
+      reviewHistory.value.unshift(historyRecord);
       saveData();
-      exportCardsLoading.value = false;
+
+      // 自动清空员工数据和审核数据
+      employees.value = [];
+      finalReviewData.value = [];
       exportSelectedRows.value = [];
       exportAllSelected.value = false;
-      ElementPlus.ElMessage.success(`已导出 ${cardImages.length} 张贺卡`);
+      localStorage.removeItem('bws_employees');
+      localStorage.removeItem('bws_finalReviewData');
+      localStorage.removeItem('bws_leaderReviewData');
+      exportCardsLoading.value = false;
+      ElementPlus.ElMessage.success(`已导出 ${cardImages.length} 张贺卡，员工数据已自动清空（历史记录可在"审核历史"中查看）`);
     }
 
     // ===== 文案库选择（领导替换用） =====
@@ -959,25 +979,6 @@ const app = createApp({
       ElementPlus.ElMessage.success('文案库模板已下载');
     }
 
-    function exportFinalExcel() {
-
-      const data = employees.value.filter(e => e.wish).map(e => ({
-        '姓名': e.name,
-        '性别': e.gender === 'male' ? '男' : '女',
-        '月份': e.birthMonth + '月',
-        '日期': (e.birthDay || 1) + '日',
-        '部门': e.department || '',
-        '祝福文案': e.wish,
-        '状态': e.wishStatus === 'exported' ? '已导出' : e.wishStatus === 'approved' ? '已审核' : e.wishStatus === 'generated' ? '已生成' : '未生成',
-        '修改方式': e.modifySource || '-'
-      }));
-      const ws = XLSX.utils.json_to_sheet(data);
-      ws['!cols'] = [{ wch: 10 }, { wch: 6 }, { wch: 8 }, { wch: 8 }, { wch: 15 }, { wch: 60 }, { wch: 12 }, { wch: 12 }];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '最终文案');
-      XLSX.writeFile(wb, '最终版生日文案.xlsx');
-    }
-
     return {
       isLoggedIn, currentUserRole, loginLoading, currentPage, loginForm,
       employees, wishLibrary, reviewEmployees, finalReviewData, reviewHistory,
@@ -1006,7 +1007,6 @@ const app = createApp({
       importEmployees, exportEmployees,
       exportWishesExcel,
       exportWishLibrary, importWishLibrary,
-      exportFinalExcel,
       saveData
     };
   }
