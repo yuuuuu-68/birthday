@@ -85,6 +85,7 @@
               <template #default="{ row }">{{ row.birthDay || '-' }}日</template>
             </el-table-column>
             <el-table-column prop="department" label="部门" width="150"></el-table-column>
+            <el-table-column prop="role" label="角色" width="120"></el-table-column>
             <el-table-column prop="wishStatus" label="文案状态" width="120">
               <template #default="{ row }">
                 <el-tag :type="row.wishStatus === 'exported' ? 'info' : row.wishStatus === 'approved' ? 'success' : row.wishStatus === 'generated' ? '' : 'info'" size="small">
@@ -128,6 +129,7 @@
               <template #default="{ row }">{{ row.birthDay || '-' }}日</template>
             </el-table-column>
             <el-table-column prop="department" label="部门" width="120"></el-table-column>
+            <el-table-column prop="role" label="角色" width="100"></el-table-column>
             <el-table-column prop="wish" label="祝福文案" min-width="300">
               <template #default="{ row }">
                 <el-input type="textarea" v-model="row.wish" :rows="3" @change="saveData"></el-input>
@@ -433,6 +435,9 @@
         <el-form-item label="部门">
           <el-input v-model="employeeForm.department" placeholder="选填"></el-input>
         </el-form-item>
+        <el-form-item label="角色">
+          <el-input v-model="employeeForm.role" placeholder="选填"></el-input>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showAddEmployee = false">取消</el-button>
@@ -517,6 +522,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="wishTemplates.js?v=21"></script>
-  <script src="app.ba072c26.js"></script>
+  <script src="app.cdea14d7.js"></script>
 </body>
 </html>
