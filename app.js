@@ -218,6 +218,8 @@ const app = createApp({
           const session = JSON.parse(savedSession);
           isLoggedIn.value = true;
           currentUserRole.value = session.role;
+          // 根据角色设置正确的页面
+          currentPage.value = session.role === 'admin' ? 'dashboard' : 'review';
         }
         // 加载领导审核结果
         const savedFinal = localStorage.getItem('bws_finalReviewData');
