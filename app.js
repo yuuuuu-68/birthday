@@ -79,6 +79,7 @@ const app = createApp({
           if (data.reviewHistory) { localStorage.setItem('bws_reviewHistory', JSON.stringify(data.reviewHistory)); reviewHistory.value = data.reviewHistory; }
           if (data.finalReviewData) { localStorage.setItem('bws_finalReviewData', JSON.stringify(data.finalReviewData)); finalReviewData.value = data.finalReviewData; }
           if (data.leaderReviewData) { localStorage.setItem('bws_leaderReviewData', JSON.stringify(data.leaderReviewData)); reviewEmployees.value = data.leaderReviewData; }
+          if (data.wishUsageHistory) { localStorage.setItem('bws_wishUsageHistory', JSON.stringify(data.wishUsageHistory)); }
           localStorage.setItem('bws_dataSha', result.sha);
           syncStatus.value = 'synced';
         } else if (res.status === 404) {
@@ -104,6 +105,7 @@ const app = createApp({
             reviewHistory: JSON.parse(localStorage.getItem('bws_reviewHistory') || '[]'),
             finalReviewData: JSON.parse(localStorage.getItem('bws_finalReviewData') || '[]'),
             leaderReviewData: JSON.parse(localStorage.getItem('bws_leaderReviewData') || '[]'),
+            wishUsageHistory: JSON.parse(localStorage.getItem('bws_wishUsageHistory') || '[]'),
             updatedAt: new Date().toISOString()
           };
           const sha = localStorage.getItem('bws_dataSha') || '';
@@ -378,23 +380,60 @@ const app = createApp({
       return 'winter';
     }
 
+    // ===== 文案使用历史管理（2个月防重复） =====
+    function getWishUsageHistory() {
+      try {
+        return JSON.parse(localStorage.getItem('bws_wishUsageHistory') || '[]');
+      } catch { return []; }
+    }
+
+    function getRecentWishes(months) {
+      const history = getWishUsageHistory();
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - months);
+      const recent = history.filter(h => new Date(h.usedDate) >= cutoff);
+      return new Set(recent.map(h => h.content));
+    }
+
+    function recordWishUsage(content) {
+      const history = getWishUsageHistory();
+      history.push({ content, usedDate: new Date().toISOString().split('T')[0] });
+      // 清理超过2个月的旧记录
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - 2);
+      const cleaned = history.filter(h => new Date(h.usedDate) >= cutoff);
+      localStorage.setItem('bws_wishUsageHistory', JSON.stringify(cleaned));
+    }
+
     function generateWishForEmployee(emp) {
       const season = getSeason(emp.birthMonth);
+      const recentWishes = getRecentWishes(2);
       let candidates = wishLibrary.value.filter(w => {
         const genderMatch = w.gender === emp.gender || w.gender === 'all';
         const seasonMatch = w.season === season || w.season === 'all';
-        return genderMatch && seasonMatch;
+        const notRecent = !recentWishes.has(w.content);
+        return genderMatch && seasonMatch && notRecent;
       });
       if (candidates.length === 0) {
-        candidates = wishLibrary.value.filter(w => w.gender === 'all' && w.season === 'all');
+        candidates = wishLibrary.value.filter(w => w.gender === 'all' && w.season === 'all' && !recentWishes.has(w.content));
       }
       if (candidates.length === 0) {
-        candidates = wishLibrary.value;
+        candidates = wishLibrary.value.filter(w => !recentWishes.has(w.content));
+      }
+      // 如果排除近期文案后无候选，则放宽限制
+      if (candidates.length === 0) {
+        candidates = wishLibrary.value.filter(w => {
+          const genderMatch = w.gender === emp.gender || w.gender === 'all';
+          const seasonMatch = w.season === season || w.season === 'all';
+          return genderMatch && seasonMatch;
+        });
+        if (candidates.length === 0) candidates = wishLibrary.value;
       }
       candidates.sort((a, b) => a.usageCount - b.usageCount);
       const topHalf = candidates.slice(0, Math.max(1, Math.ceil(candidates.length / 2)));
       const selected = topHalf[Math.floor(Math.random() * topHalf.length)];
       selected.usageCount++;
+      recordWishUsage(selected.content);
       return selected.content;
     }
 
