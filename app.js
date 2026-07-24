@@ -30,7 +30,7 @@ const app = createApp({
     const exportCardsLoading = ref(false);
 
     // 表单
-    const employeeForm = reactive({ name: '', gender: 'female', birthMonth: 1, birthDay: 1, department: '' });
+    const employeeForm = reactive({ name: '', gender: 'female', birthMonth: 1, birthDay: 1, department: '', role: '' });
     const wishTemplateForm = reactive({ content: '', gender: 'all', season: 'all', tags: '' });
 
     // 筛选
@@ -275,7 +275,7 @@ const app = createApp({
     // ===== 员工管理 =====
     function showAddEmployeeDialog() {
       editingEmployeeIndex.value = -1;
-      Object.assign(employeeForm, { name: '', gender: 'female', birthMonth: 1, birthDay: 1, department: '' });
+      Object.assign(employeeForm, { name: '', gender: 'female', birthMonth: 1, birthDay: 1, department: '', role: '' });
       showAddEmployee.value = true;
     }
 
@@ -285,7 +285,8 @@ const app = createApp({
       Object.assign(employeeForm, {
         name: emp.name, gender: emp.gender,
         birthMonth: emp.birthMonth, birthDay: emp.birthDay || 1,
-        department: emp.department || ''
+        department: emp.department || '',
+        role: emp.role || ''
       });
       showAddEmployee.value = true;
     }
@@ -301,6 +302,7 @@ const app = createApp({
         birthMonth: employeeForm.birthMonth,
         birthDay: employeeForm.birthDay || 1,
         department: employeeForm.department.trim(),
+        role: employeeForm.role.trim(),
         wish: '',
         wishStatus: 'pending',
         modifySource: ''
@@ -967,12 +969,12 @@ const app = createApp({
     // ===== Excel 导入导出 =====
     function downloadImportTemplate() {
       const templateData = [
-        { '姓名': '张三', '性别': '女', '月份': 3, '日期': 15, '部门': '人力资源部' },
-        { '姓名': '李四', '性别': '男', '月份': 7, '日期': 22, '部门': '财务部' },
-        { '姓名': '王五', '性别': '女', '月份': 12, '日期': 8, '部门': '运营部' }
+        { '姓名': '张三', '性别': '女', '月份': 3, '日期': 15, '部门': '人力资源部', '角色': 'HR大G' },
+        { '姓名': '李四', '性别': '男', '月份': 7, '日期': 22, '部门': '财务部', '角色': '中台一号位' },
+        { '姓名': '王五', '性别': '女', '月份': 12, '日期': 8, '部门': '运营部', '角色': '门店一号位' }
       ];
       const ws = XLSX.utils.json_to_sheet(templateData);
-      ws['!cols'] = [{ wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 15 }];
+      ws['!cols'] = [{ wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 15 }, { wch: 15 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, '员工信息');
       XLSX.writeFile(wb, '员工导入模板.xlsx');
@@ -981,6 +983,7 @@ const app = createApp({
 
     function importEmployees(file) {
       const reader = new FileReader();
+      const fileName = file.name || '';
       reader.onload = (e) => {
         try {
           const data = new Uint8Array(e.target.result);
@@ -988,29 +991,75 @@ const app = createApp({
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const json = XLSX.utils.sheet_to_json(sheet);
           let count = 0;
-          json.forEach(row => {
-            // 兼容中英文列名
-            const name = row['姓名'] || row['name'] || row['Name'];
-            if (!name) return;
-            const genderText = String(row['性别'] || row['gender'] || row['Gender'] || '女');
-            let gender = 'female';
-            if (genderText === '男' || genderText === 'male' || genderText === 'Male') gender = 'male';
-            else if (genderText === '女' || genderText === 'female' || genderText === 'Female') gender = 'female';
-            const birthMonth = parseInt(row['月份'] || row['month'] || row['Month'] || row['生日月份'] || 1);
-            const birthDay = parseInt(row['日期'] || row['day'] || row['Day'] || row['生日日期'] || 1);
-            const department = row['部门'] || row['department'] || row['Department'] || '';
-            const exists = employees.value.find(emp => emp.name === name);
-            if (!exists) {
-              employees.value.push({
-                name, gender, birthMonth: isNaN(birthMonth) ? 1 : birthMonth,
-                birthDay: isNaN(birthDay) ? 1 : birthDay,
-                department, wish: '', wishStatus: 'pending', modifySource: ''
-              });
-              count++;
-            }
-          });
+
+          if (fileName.includes('合伙人')) {
+            // 合伙人群名单格式
+            json.forEach(row => {
+              const name = row['姓名'];
+              if (!name || typeof name !== 'string' || name.length > 10) return;
+              const exists = employees.value.find(emp => emp.name === name);
+              if (!exists) {
+                employees.value.push({
+                  name, gender: '',
+                  birthMonth: parseInt(row['生日-月']) || 1,
+                  birthDay: parseInt(row['生日-日']) || 1,
+                  department: row['员工所在部门'] || '',
+                  role: row['角色'] || '',
+                  wish: '', wishStatus: 'pending', modifySource: ''
+                });
+                count++;
+              }
+            });
+          } else if (fileName.includes('HR')) {
+            // HR名单格式
+            json.forEach(row => {
+              const name = row['姓名(中)'] || row['姓名'];
+              if (!name || typeof name !== 'string' || name.length > 10) return;
+              const genderText = row['性别'] || '';
+              let gender = '';
+              if (genderText === '男') gender = 'male';
+              else if (genderText === '女') gender = 'female';
+              const exists = employees.value.find(emp => emp.name === name);
+              if (!exists) {
+                employees.value.push({
+                  name, gender,
+                  birthMonth: parseInt(row['生日-月']) || 1,
+                  birthDay: parseInt(row['生日-日']) || 1,
+                  department: row['员工所在部门'] || '',
+                  role: row['员工类型'] || '',
+                  wish: '', wishStatus: 'pending', modifySource: ''
+                });
+                count++;
+              }
+            });
+          } else {
+            // 通用格式（兼容中英文列名）
+            json.forEach(row => {
+              const name = row['姓名'] || row['name'] || row['Name'];
+              if (!name) return;
+              const genderText = String(row['性别'] || row['gender'] || row['Gender'] || '');
+              let gender = '';
+              if (genderText === '男' || genderText === 'male' || genderText === 'Male') gender = 'male';
+              else if (genderText === '女' || genderText === 'female' || genderText === 'Female') gender = 'female';
+              const birthMonth = parseInt(row['月份'] || row['month'] || row['Month'] || row['生日-月'] || row['生日月份'] || 1);
+              const birthDay = parseInt(row['日期'] || row['day'] || row['Day'] || row['生日-日'] || row['生日日期'] || 1);
+              const department = row['部门'] || row['department'] || row['Department'] || row['员工所在部门'] || '';
+              const role = row['角色'] || row['role'] || row['Role'] || row['员工类型'] || '';
+              const exists = employees.value.find(emp => emp.name === name);
+              if (!exists) {
+                employees.value.push({
+                  name, gender, birthMonth: isNaN(birthMonth) ? 1 : birthMonth,
+                  birthDay: isNaN(birthDay) ? 1 : birthDay,
+                  department, role,
+                  wish: '', wishStatus: 'pending', modifySource: ''
+                });
+                count++;
+              }
+            });
+          }
           saveData();
-          ElementPlus.ElMessage.success(`导入成功，新增 ${count} 名员工`);
+          const typeHint = fileName.includes('合伙人') ? '（合伙人群名单）' : fileName.includes('HR') ? '（HR名单）' : '';
+          ElementPlus.ElMessage.success(`导入成功${typeHint}，新增 ${count} 名员工`);
         } catch (err) {
           ElementPlus.ElMessage.error('导入失败：' + err.message);
         }
@@ -1021,10 +1070,11 @@ const app = createApp({
     function exportEmployees() {
       const data = employees.value.map(e => ({
         '姓名': e.name,
-        '性别': e.gender === 'male' ? '男' : '女',
+        '性别': e.gender === 'male' ? '男' : e.gender === 'female' ? '女' : '',
         '月份': e.birthMonth,
         '日期': e.birthDay || 1,
         '部门': e.department || '',
+        '角色': e.role || '',
         '文案状态': e.wishStatus === 'exported' ? '已导出' : e.wishStatus === 'approved' ? '已审核' : e.wishStatus === 'generated' ? '已生成' : '未生成'
       }));
       const ws = XLSX.utils.json_to_sheet(data);
