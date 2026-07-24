@@ -1124,7 +1124,13 @@ const app = createApp({
           if (fileName.includes('合伙人')) {
             // 合伙人群名单格式
             json.forEach(row => {
-              const rowMonth = parseInt(row['生日-月']) || 0;
+              // 灵活匹配列名：查找包含“生日”和“月”的列
+              const keys = Object.keys(row);
+              const monthKey = keys.find(k => k.includes('生日') && k.includes('月')) || keys.find(k => k === '月份' || k === 'month');
+              const dayKey = keys.find(k => k.includes('生日') && k.includes('日')) || keys.find(k => k === '日期' || k === 'day');
+              const roleKey = keys.find(k => k.includes('角色')) || keys.find(k => k === 'role');
+              const deptKey = keys.find(k => k.includes('部门')) || keys.find(k => k === 'department');
+              const rowMonth = parseInt(row[monthKey]) || 0;
               if (rowMonth !== filterMonth) { skippedMonth++; return; }
               const name = row['姓名'];
               if (!name || typeof name !== 'string' || name.length > 10) return;
@@ -1133,9 +1139,9 @@ const app = createApp({
                 employees.value.push({
                   name, gender: '',
                   birthMonth: rowMonth,
-                  birthDay: parseInt(row['生日-日']) || 1,
-                  department: row['员工所在部门'] || '',
-                  role: row['角色'] || '',
+                  birthDay: parseInt(row[dayKey]) || 1,
+                  department: row[deptKey] || '',
+                  role: row[roleKey] || '',
                   wish: '', wishStatus: 'pending', modifySource: ''
                 });
                 count++;
@@ -1144,11 +1150,18 @@ const app = createApp({
           } else if (fileName.includes('HR')) {
             // HR名单格式
             json.forEach(row => {
-              const rowMonth = parseInt(row['生日-月']) || 0;
+              const keys = Object.keys(row);
+              const monthKey = keys.find(k => k.includes('生日') && k.includes('月')) || keys.find(k => k === '月份' || k === 'month');
+              const dayKey = keys.find(k => k.includes('生日') && k.includes('日')) || keys.find(k => k === '日期' || k === 'day');
+              const nameKey = keys.find(k => k.includes('姓名')) || '姓名';
+              const genderKey = keys.find(k => k.includes('性别')) || '性别';
+              const deptKey = keys.find(k => k.includes('部门')) || '员工所在部门';
+              const roleKey = keys.find(k => k.includes('员工类型') || k.includes('类型')) || '员工类型';
+              const rowMonth = parseInt(row[monthKey]) || 0;
               if (rowMonth !== filterMonth) { skippedMonth++; return; }
-              const name = row['姓名(中)'] || row['姓名'];
+              const name = row[nameKey];
               if (!name || typeof name !== 'string' || name.length > 10) return;
-              const genderText = row['性别'] || '';
+              const genderText = row[genderKey] || '';
               let gender = '';
               if (genderText === '男') gender = 'male';
               else if (genderText === '女') gender = 'female';
@@ -1157,9 +1170,9 @@ const app = createApp({
                 employees.value.push({
                   name, gender,
                   birthMonth: rowMonth,
-                  birthDay: parseInt(row['生日-日']) || 1,
-                  department: row['员工所在部门'] || '',
-                  role: row['员工类型'] || '',
+                  birthDay: parseInt(row[dayKey]) || 1,
+                  department: row[deptKey] || '',
+                  role: row[roleKey] || '',
                   wish: '', wishStatus: 'pending', modifySource: ''
                 });
                 count++;
