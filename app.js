@@ -992,14 +992,19 @@ const app = createApp({
           }
         });
 
-        // 保存历史审核记录
+        // 保存历史审核记录（确保状态统一为已审核）
         const now = new Date();
+        const normalizedRecords = reviewEmployees.value.map(r => ({
+          ...r,
+          wishStatus: 'approved',
+          modifySource: r.modifySource || '审核通过'
+        }));
         const historyRecord = {
           id: 'h' + Date.now(),
           reviewTime: now.toLocaleString('zh-CN'),
           exportDate: now.getFullYear() + '/' + (now.getMonth() + 1) + '/' + now.getDate(),
           totalCount: reviewEmployees.value.length,
-          records: JSON.parse(JSON.stringify(reviewEmployees.value))
+          records: normalizedRecords
         };
         reviewHistory.value.unshift(historyRecord);
 
