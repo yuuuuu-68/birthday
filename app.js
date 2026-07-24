@@ -504,8 +504,26 @@ const app = createApp({
         }));
         localStorage.setItem('bws_leaderReviewData', JSON.stringify(reviewData));
         submitSelectedRows.value = [];
-        syncToGitHub(true); // 立即同步到GitHub，确保领导在其他设备能看到
-        ElementPlus.ElMessage.success(`已提交 ${reviewData.length} 条文案给领导审核`);
+        ElementPlus.ElMessage.success(`已提交 ${reviewData.length} 条文案给领导审核，正在同步...`);
+        // 立即同步到GitHub并等待完成
+        const syncPromise = new Promise((resolve) => {
+          syncToGitHub(true);
+          // 等待同步完成（最多5秒）
+          const check = setInterval(() => {
+            if (syncStatus.value !== 'syncing') {
+              clearInterval(check);
+              resolve();
+            }
+          }, 200);
+          setTimeout(() => { clearInterval(check); resolve(); }, 5000);
+        });
+        syncPromise.then(() => {
+          if (syncStatus.value === 'synced') {
+            ElementPlus.ElMessage.success('已同步到GitHub，领导可在任何设备查看');
+          } else {
+            ElementPlus.ElMessage.error('GitHub同步失败，请检查网络连接');
+          }
+        });
       }).catch(() => {});
     }
 
