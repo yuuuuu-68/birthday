@@ -496,6 +496,7 @@ const app = createApp({
         }));
         localStorage.setItem('bws_leaderReviewData', JSON.stringify(reviewData));
         submitSelectedRows.value = [];
+        syncToGitHub(true); // 立即同步到GitHub，确保领导在其他设备能看到
         ElementPlus.ElMessage.success(`已提交 ${reviewData.length} 条文案给领导审核`);
       }).catch(() => {});
     }
