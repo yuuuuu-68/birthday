@@ -327,6 +327,49 @@ const app = createApp({
       }).catch(() => {});
     }
 
+    function clearAllEmployees() {
+      if (employees.value.length === 0) {
+        ElementPlus.ElMessage.info('当前没有员工数据');
+        return;
+      }
+      ElementPlus.ElMessageBox.confirm(
+        `确定清空全部 ${employees.value.length} 名员工数据吗？此操作不可撤销！`,
+        '警告',
+        { type: 'warning', confirmButtonText: '确认清空', cancelButtonText: '取消', confirmButtonClass: 'el-button--danger' }
+      ).then(() => {
+        employees.value = [];
+        saveData();
+        ElementPlus.ElMessage.success('已清空全部员工数据');
+      }).catch(() => {});
+    }
+
+    function showMonthPickerDialog() {
+      return new Promise((resolve) => {
+        const now = new Date();
+        const nextMonth = now.getMonth() + 2 > 12 ? 1 : now.getMonth() + 2;
+        let selectedMonth = nextMonth;
+
+        const h = ElementPlus.ElMessageBox._context ? ElementPlus.ElMessageBox : window.ElementPlus.ElMessageBox;
+        h.confirm(
+          '请选择要导入的生日月份（只导入该月生日的员工）：',
+          '选择导入月份',
+          {
+            distinguishCancelAndClose: true,
+            confirmButtonText: '确认导入',
+            cancelButtonText: '取消',
+            inputPattern: /^(1[0-2]|[1-9])$/,
+            inputErrorMessage: '请输入1-12之间的数字',
+            inputValue: String(nextMonth),
+            showInput: true
+          }
+        ).then(({ value }) => {
+          resolve(parseInt(value));
+        }).catch(() => {
+          resolve(null);
+        });
+      });
+    }
+
     // ===== 文案生成 =====
     function getSeason(month) {
       if ([3, 4, 5].includes(month)) return 'spring';
@@ -981,7 +1024,11 @@ const app = createApp({
       ElementPlus.ElMessage.success('模板已下载，请按格式填写后导入');
     }
 
-    function importEmployees(file) {
+    async function importEmployees(file) {
+      // 先弹出月份选择对话框
+      const filterMonth = await showMonthPickerDialog();
+      if (!filterMonth) return; // 用户取消
+
       const reader = new FileReader();
       const fileName = file.name || '';
       reader.onload = (e) => {
@@ -991,17 +1038,20 @@ const app = createApp({
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const json = XLSX.utils.sheet_to_json(sheet);
           let count = 0;
+          let skippedMonth = 0;
 
           if (fileName.includes('合伙人')) {
             // 合伙人群名单格式
             json.forEach(row => {
+              const rowMonth = parseInt(row['生日-月']) || 0;
+              if (rowMonth !== filterMonth) { skippedMonth++; return; }
               const name = row['姓名'];
               if (!name || typeof name !== 'string' || name.length > 10) return;
               const exists = employees.value.find(emp => emp.name === name);
               if (!exists) {
                 employees.value.push({
                   name, gender: '',
-                  birthMonth: parseInt(row['生日-月']) || 1,
+                  birthMonth: rowMonth,
                   birthDay: parseInt(row['生日-日']) || 1,
                   department: row['员工所在部门'] || '',
                   role: row['角色'] || '',
@@ -1013,6 +1063,8 @@ const app = createApp({
           } else if (fileName.includes('HR')) {
             // HR名单格式
             json.forEach(row => {
+              const rowMonth = parseInt(row['生日-月']) || 0;
+              if (rowMonth !== filterMonth) { skippedMonth++; return; }
               const name = row['姓名(中)'] || row['姓名'];
               if (!name || typeof name !== 'string' || name.length > 10) return;
               const genderText = row['性别'] || '';
@@ -1023,7 +1075,7 @@ const app = createApp({
               if (!exists) {
                 employees.value.push({
                   name, gender,
-                  birthMonth: parseInt(row['生日-月']) || 1,
+                  birthMonth: rowMonth,
                   birthDay: parseInt(row['生日-日']) || 1,
                   department: row['员工所在部门'] || '',
                   role: row['员工类型'] || '',
@@ -1035,20 +1087,21 @@ const app = createApp({
           } else {
             // 通用格式（兼容中英文列名）
             json.forEach(row => {
+              const rowMonth = parseInt(row['月份'] || row['month'] || row['Month'] || row['生日-月'] || row['生日月份'] || 0);
+              if (rowMonth !== filterMonth) { skippedMonth++; return; }
               const name = row['姓名'] || row['name'] || row['Name'];
               if (!name) return;
               const genderText = String(row['性别'] || row['gender'] || row['Gender'] || '');
               let gender = '';
               if (genderText === '男' || genderText === 'male' || genderText === 'Male') gender = 'male';
               else if (genderText === '女' || genderText === 'female' || genderText === 'Female') gender = 'female';
-              const birthMonth = parseInt(row['月份'] || row['month'] || row['Month'] || row['生日-月'] || row['生日月份'] || 1);
               const birthDay = parseInt(row['日期'] || row['day'] || row['Day'] || row['生日-日'] || row['生日日期'] || 1);
               const department = row['部门'] || row['department'] || row['Department'] || row['员工所在部门'] || '';
               const role = row['角色'] || row['role'] || row['Role'] || row['员工类型'] || '';
               const exists = employees.value.find(emp => emp.name === name);
               if (!exists) {
                 employees.value.push({
-                  name, gender, birthMonth: isNaN(birthMonth) ? 1 : birthMonth,
+                  name, gender, birthMonth: rowMonth,
                   birthDay: isNaN(birthDay) ? 1 : birthDay,
                   department, role,
                   wish: '', wishStatus: 'pending', modifySource: ''
@@ -1059,7 +1112,7 @@ const app = createApp({
           }
           saveData();
           const typeHint = fileName.includes('合伙人') ? '（合伙人群名单）' : fileName.includes('HR') ? '（HR名单）' : '';
-          ElementPlus.ElMessage.success(`导入成功${typeHint}，新增 ${count} 名员工`);
+          ElementPlus.ElMessage.success(`导入成功${typeHint}，${filterMonth}月新增 ${count} 名员工${skippedMonth > 0 ? '（已跳过其他月份 ' + skippedMonth + ' 条）' : ''}`);
         } catch (err) {
           ElementPlus.ElMessage.error('导入失败：' + err.message);
         }
@@ -1215,7 +1268,7 @@ const app = createApp({
       historyFilter, filteredHistory,
       hasLeaderReview,
       handleLogin, handleLogout,
-      showAddEmployeeDialog, editEmployee, saveEmployee, deleteEmployee,
+      showAddEmployeeDialog, editEmployee, saveEmployee, deleteEmployee, clearAllEmployees,
       batchGenerateWishes, regenerateWish,
       saveWishTemplate, deleteWishTemplate, filterLibrary,
       previewCard, downloadCard, exportAllCards,
