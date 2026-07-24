@@ -1117,7 +1117,35 @@ const app = createApp({
           const data = new Uint8Array(e.target.result);
           const workbook = XLSX.read(data, { type: 'array' });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(sheet);
+          
+          // 尝试多种解析方式，找到包含生日月份的表头行
+          let json;
+          let testKeys;
+          const json0 = XLSX.utils.sheet_to_json(sheet, { range: 0 });
+          const json1 = XLSX.utils.sheet_to_json(sheet, { range: 1 });
+          const json2 = XLSX.utils.sheet_to_json(sheet, { range: 2 });
+          
+          // 选择包含"生日"和"月"关键词的解析方式
+          const findBirthdayKey = (arr) => {
+            if (!arr.length) return null;
+            const keys = Object.keys(arr[0]);
+            return keys.find(k => k.includes('生日') && k.includes('月')) || null;
+          };
+          
+          if (findBirthdayKey(json0)) {
+            json = json0;
+          } else if (findBirthdayKey(json1)) {
+            json = json1;
+          } else if (findBirthdayKey(json2)) {
+            json = json2;
+          } else {
+            // 如果都找不到，用默认解析并显示调试信息
+            json = json0;
+            const sampleKeys = json.length > 0 ? Object.keys(json[0]).join(', ') : '无数据';
+            ElementPlus.ElMessage.error('无法识别月份列，表头为: ' + sampleKeys + '。请联系开发者');
+            return;
+          }
+          
           let count = 0;
           let skippedMonth = 0;
 
