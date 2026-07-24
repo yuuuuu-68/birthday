@@ -255,7 +255,15 @@ const app = createApp({
           currentPage.value = loginForm.role === 'admin' ? 'dashboard' : 'review';
           ElementPlus.ElMessage.success('登录成功');
           if (loginForm.role === 'leader') {
-            loadReviewData();
+            // leader登录时先同步GitHub最新数据，再加载审核数据
+            syncFromGitHub().then(() => {
+              loadReviewData();
+            });
+          } else {
+            // admin登录时也同步最新数据
+            syncFromGitHub().then(() => {
+              loadData();
+            });
           }
         } else {
           ElementPlus.ElMessage.error('密码错误');
