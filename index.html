@@ -21,7 +21,7 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" show-password @keyup.enter="handleLogin"></el-input>
+            <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" show-password @keyup.enter="handleLogin" @input="loginForm.password = loginForm.password.replace(/[^a-zA-Z0-9]/g, '')"></el-input>
           </el-form-item>
           <el-button type="primary" style="width:100%" @click="handleLogin" :loading="loginLoading">登 录</el-button>
         </el-form>
@@ -523,6 +523,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="wishTemplates.js?v=21"></script>
-  <script src="app.7bc7bbe8.js"></script>
+  <script src="app.a134519e.js"></script>
 </body>
 </html>
