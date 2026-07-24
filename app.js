@@ -78,7 +78,7 @@ const app = createApp({
           if (data.wishLibrary) { localStorage.setItem('bws_wishLibrary', JSON.stringify(data.wishLibrary)); wishLibrary.value = data.wishLibrary; }
           if (data.reviewHistory) { localStorage.setItem('bws_reviewHistory', JSON.stringify(data.reviewHistory)); reviewHistory.value = data.reviewHistory; }
           if (data.finalReviewData) { localStorage.setItem('bws_finalReviewData', JSON.stringify(data.finalReviewData)); finalReviewData.value = data.finalReviewData; }
-          if (data.leaderReviewData) { localStorage.setItem('bws_leaderReviewData', JSON.stringify(data.leaderReviewData)); reviewEmployees.value = data.leaderReviewData; }
+          if (data.leaderReviewData && data.leaderReviewData.length > 0) { localStorage.setItem('bws_leaderReviewData', JSON.stringify(data.leaderReviewData)); reviewEmployees.value = data.leaderReviewData; }
           if (data.wishUsageHistory) { localStorage.setItem('bws_wishUsageHistory', JSON.stringify(data.wishUsageHistory)); }
           localStorage.setItem('bws_dataSha', result.sha);
           syncStatus.value = 'synced';
@@ -257,10 +257,18 @@ const app = createApp({
           currentPage.value = loginForm.role === 'admin' ? 'dashboard' : 'review';
           ElementPlus.ElMessage.success('登录成功');
           if (loginForm.role === 'leader') {
-            // leader登录时先同步GitHub最新数据，再加载审核数据
-            syncFromGitHub().then(() => {
+            // leader登录：先检查本地是否有待审核数据
+            const localReview = localStorage.getItem('bws_leaderReviewData');
+            if (localReview && JSON.parse(localReview).length > 0) {
+              // 本地有数据，直接加载，同时后台同步GitHub
               loadReviewData();
-            });
+              syncFromGitHub(); // 后台更新，不等待
+            } else {
+              // 本地无数据，从GitHub拉取
+              syncFromGitHub().then(() => {
+                loadReviewData();
+              });
+            }
           } else {
             // admin登录时也同步最新数据
             syncFromGitHub().then(() => {
