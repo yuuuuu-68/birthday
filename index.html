@@ -71,6 +71,7 @@
                 <el-button>导入Excel</el-button>
               </el-upload>
               <el-button @click="exportEmployees">导出Excel</el-button>
+              <el-button type="danger" @click="clearAllEmployees" :disabled="employees.length === 0" plain>清空全部</el-button>
             </div>
           </div>
           <el-table :data="employees" border stripe style="width:100%">
@@ -522,6 +523,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="wishTemplates.js?v=21"></script>
-  <script src="app.cdea14d7.js"></script>
+  <script src="app.d541cf22.js"></script>
 </body>
 </html>
