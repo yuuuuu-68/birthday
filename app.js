@@ -1361,7 +1361,7 @@ const app = createApp({
         '月份': e.birthMonth + '月',
         '日期': (e.birthDay || 1) + '日',
         '部门': e.department || '',
-        '祝福文案': formatWish(e),
+        '祝福文案': e.wish,
         '状态': e.wishStatus === 'exported' ? '已导出' : e.wishStatus === 'approved' ? '已审核' : e.wishStatus === 'generated' ? '已生成' : '待审核'
       }));
       const ws = XLSX.utils.json_to_sheet(data);
