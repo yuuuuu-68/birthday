@@ -1105,6 +1105,98 @@ const app = createApp({
       ElementPlus.ElMessage.success('模板已下载，请按格式填写后导入');
     }
 
+    // 通用生日解析：支持数字、Excel日期序列号、Date对象、多种字符串格式
+    function parseBirthday(value) {
+      if (value === undefined || value === null || value === '') return null;
+      // Date 对象
+      if (value instanceof Date) {
+        return { month: value.getMonth() + 1, day: value.getDate() };
+      }
+      // 数字
+      if (typeof value === 'number') {
+        if (value >= 1 && value <= 12) return { month: Math.round(value), day: null };
+        if (value >= 13 && value <= 31) return { month: null, day: Math.round(value) };
+        if (value > 1000) {
+          // Excel 日期序列号
+          try {
+            const d = XLSX.SSF.parse_date_code(value);
+            if (d && d.m >= 1 && d.m <= 12) return { month: d.m, day: (d.d >= 1 && d.d <= 31) ? d.d : null };
+          } catch (err) {}
+        }
+        return null;
+      }
+      const s = String(value).trim();
+      // 纯日格式：15日
+      let m = s.match(/^(\d{1,2})\s*日$/);
+      if (m) {
+        const day = parseInt(m[1]);
+        if (day >= 1 && day <= 31) return { month: null, day };
+      }
+      // 中文格式：8月15日 / 8月
+      m = s.match(/(\d{1,2})\s*月\s*(\d{1,2})?\s*日?/);
+      if (m) {
+        const month = parseInt(m[1]);
+        const day = m[2] ? parseInt(m[2]) : null;
+        if (month >= 1 && month <= 12) return { month, day: (day >= 1 && day <= 31) ? day : null };
+      }
+      // 完整日期：1990/8/15、1990-08-15、1990.8.15
+      m = s.match(/\d{4}[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+      if (m) {
+        const month = parseInt(m[1]);
+        const day = parseInt(m[2]);
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return { month, day };
+      }
+      // 短日期：8/15、8-15
+      m = s.match(/^(\d{1,2})[-\/.](\d{1,2})$/);
+      if (m) {
+        const month = parseInt(m[1]);
+        const day = parseInt(m[2]);
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return { month, day };
+      }
+      // 纯数字字符串
+      m = s.match(/^(\d{1,2})$/);
+      if (m) {
+        const n = parseInt(m[1]);
+        if (n >= 1 && n <= 12) return { month: n, day: null };
+        if (n >= 13 && n <= 31) return { month: null, day: n };
+      }
+      return null;
+    }
+
+    // 从一行数据中提取生日月/日（支持分列或单列完整日期）
+    function extractBirthFromRow(row) {
+      const keys = Object.keys(row);
+      // 区分月列/日列：去掉"生日/出生"前缀后再判断剩余部分
+      let monthKey = null, dayKey = null, singleKey = null;
+      keys.filter(k => k.includes('生日') || k.includes('出生')).forEach(k => {
+        const rest = k.replace(/生日|出生/g, '');
+        if (rest.includes('月') && !monthKey) monthKey = k;
+        else if (rest.includes('日') && !dayKey) dayKey = k;
+        else if (!singleKey) singleKey = k;
+      });
+      if (!monthKey) monthKey = keys.find(k => k === '月份' || k.toLowerCase() === 'month');
+      if (!dayKey) dayKey = keys.find(k => k === '日期' || k.toLowerCase() === 'day');
+      let month = null, day = null;
+      if (monthKey) {
+        const p = parseBirthday(row[monthKey]);
+        if (p) { month = p.month; if (p.day) day = p.day; }
+      }
+      if (dayKey && !day) {
+        const p = parseBirthday(row[dayKey]);
+        if (p) {
+          day = p.day !== null ? p.day : p.month; // 日列里 1-12 的数字也是日期
+          // 日列实际是完整日期（如"出生日期"列）时同时提取月份
+          if (p.month && p.day && !month) month = p.month;
+        }
+      }
+      // 兜底：单列完整生日（如"出生日期"、"生日"）
+      if (!month && singleKey) {
+        const p = parseBirthday(row[singleKey]);
+        if (p && p.month) { month = p.month; if (!day && p.day) day = p.day; }
+      }
+      return { month, day };
+    }
+
     async function importEmployees(file) {
       // 先弹出月份选择对话框
       const filterMonth = await showMonthPickerDialog();
@@ -1118,18 +1210,17 @@ const app = createApp({
           const workbook = XLSX.read(data, { type: 'array' });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           
-          // 尝试多种解析方式，找到包含生日月份的表头行
+          // 尝试多种解析方式，找到包含生日列的表头行
           let json;
-          let testKeys;
-          const json0 = XLSX.utils.sheet_to_json(sheet, { range: 0 });
-          const json1 = XLSX.utils.sheet_to_json(sheet, { range: 1 });
-          const json2 = XLSX.utils.sheet_to_json(sheet, { range: 2 });
+          const json0 = XLSX.utils.sheet_to_json(sheet, { range: 0, raw: true });
+          const json1 = XLSX.utils.sheet_to_json(sheet, { range: 1, raw: true });
+          const json2 = XLSX.utils.sheet_to_json(sheet, { range: 2, raw: true });
           
-          // 选择包含"生日"和"月"关键词的解析方式
+          // 选择包含生日相关列名的解析方式
           const findBirthdayKey = (arr) => {
             if (!arr.length) return null;
             const keys = Object.keys(arr[0]);
-            return keys.find(k => k.includes('生日') && k.includes('月')) || null;
+            return keys.find(k => k.includes('生日') || k.includes('出生') || k === '月份' || k.toLowerCase() === 'month') || null;
           };
           
           if (findBirthdayKey(json0)) {
@@ -1142,32 +1233,31 @@ const app = createApp({
             // 如果都找不到，用默认解析并显示调试信息
             json = json0;
             const sampleKeys = json.length > 0 ? Object.keys(json[0]).join(', ') : '无数据';
-            ElementPlus.ElMessage.error('无法识别月份列，表头为: ' + sampleKeys + '。请联系开发者');
+            ElementPlus.ElMessage.error('无法识别生日列，表头为: ' + sampleKeys + '。请联系开发者');
             return;
           }
           
           let count = 0;
           let skippedMonth = 0;
+          let skippedInvalid = 0;
 
           if (fileName.includes('合伙人')) {
             // 合伙人群名单格式
             json.forEach(row => {
-              // 灵活匹配列名：查找包含“生日”和“月”的列
               const keys = Object.keys(row);
-              const monthKey = keys.find(k => k.includes('生日') && k.includes('月')) || keys.find(k => k === '月份' || k === 'month');
-              const dayKey = keys.find(k => k.includes('生日') && k.includes('日')) || keys.find(k => k === '日期' || k === 'day');
               const roleKey = keys.find(k => k.includes('角色')) || keys.find(k => k === 'role');
               const deptKey = keys.find(k => k.includes('部门')) || keys.find(k => k === 'department');
-              const rowMonth = parseInt(row[monthKey]) || 0;
-              if (rowMonth !== filterMonth) { skippedMonth++; return; }
+              const birth = extractBirthFromRow(row);
+              if (!birth.month) { skippedInvalid++; return; }
+              if (birth.month !== filterMonth) { skippedMonth++; return; }
               const name = row['姓名'];
               if (!name || typeof name !== 'string' || name.length > 10) return;
               const exists = employees.value.find(emp => emp.name === name);
               if (!exists) {
                 employees.value.push({
                   name, gender: '',
-                  birthMonth: rowMonth,
-                  birthDay: parseInt(row[dayKey]) || 1,
+                  birthMonth: birth.month,
+                  birthDay: birth.day || 1,
                   department: row[deptKey] || '',
                   role: row[roleKey] || '',
                   wish: '', wishStatus: 'pending', modifySource: ''
@@ -1179,14 +1269,13 @@ const app = createApp({
             // HR名单格式
             json.forEach(row => {
               const keys = Object.keys(row);
-              const monthKey = keys.find(k => k.includes('生日') && k.includes('月')) || keys.find(k => k === '月份' || k === 'month');
-              const dayKey = keys.find(k => k.includes('生日') && k.includes('日')) || keys.find(k => k === '日期' || k === 'day');
               const nameKey = keys.find(k => k.includes('姓名')) || '姓名';
               const genderKey = keys.find(k => k.includes('性别')) || '性别';
               const deptKey = keys.find(k => k.includes('部门')) || '员工所在部门';
               const roleKey = keys.find(k => k.includes('员工类型') || k.includes('类型')) || '员工类型';
-              const rowMonth = parseInt(row[monthKey]) || 0;
-              if (rowMonth !== filterMonth) { skippedMonth++; return; }
+              const birth = extractBirthFromRow(row);
+              if (!birth.month) { skippedInvalid++; return; }
+              if (birth.month !== filterMonth) { skippedMonth++; return; }
               const name = row[nameKey];
               if (!name || typeof name !== 'string' || name.length > 10) return;
               const genderText = row[genderKey] || '';
@@ -1197,8 +1286,8 @@ const app = createApp({
               if (!exists) {
                 employees.value.push({
                   name, gender,
-                  birthMonth: rowMonth,
-                  birthDay: parseInt(row[dayKey]) || 1,
+                  birthMonth: birth.month,
+                  birthDay: birth.day || 1,
                   department: row[deptKey] || '',
                   role: row[roleKey] || '',
                   wish: '', wishStatus: 'pending', modifySource: ''
@@ -1209,22 +1298,22 @@ const app = createApp({
           } else {
             // 通用格式（兼容中英文列名）
             json.forEach(row => {
-              const rowMonth = parseInt(row['月份'] || row['month'] || row['Month'] || row['生日-月'] || row['生日月份'] || 0);
-              if (rowMonth !== filterMonth) { skippedMonth++; return; }
+              const birth = extractBirthFromRow(row);
+              if (!birth.month) { skippedInvalid++; return; }
+              if (birth.month !== filterMonth) { skippedMonth++; return; }
               const name = row['姓名'] || row['name'] || row['Name'];
               if (!name) return;
               const genderText = String(row['性别'] || row['gender'] || row['Gender'] || '');
               let gender = '';
               if (genderText === '男' || genderText === 'male' || genderText === 'Male') gender = 'male';
               else if (genderText === '女' || genderText === 'female' || genderText === 'Female') gender = 'female';
-              const birthDay = parseInt(row['日期'] || row['day'] || row['Day'] || row['生日-日'] || row['生日日期'] || 1);
               const department = row['部门'] || row['department'] || row['Department'] || row['员工所在部门'] || '';
               const role = row['角色'] || row['role'] || row['Role'] || row['员工类型'] || '';
               const exists = employees.value.find(emp => emp.name === name);
               if (!exists) {
                 employees.value.push({
-                  name, gender, birthMonth: rowMonth,
-                  birthDay: isNaN(birthDay) ? 1 : birthDay,
+                  name, gender, birthMonth: birth.month,
+                  birthDay: birth.day || 1,
                   department, role,
                   wish: '', wishStatus: 'pending', modifySource: ''
                 });
@@ -1234,7 +1323,14 @@ const app = createApp({
           }
           saveData();
           const typeHint = fileName.includes('合伙人') ? '（合伙人群名单）' : fileName.includes('HR') ? '（HR名单）' : '';
-          ElementPlus.ElMessage.success(`导入成功${typeHint}，${filterMonth}月新增 ${count} 名员工${skippedMonth > 0 ? '（已跳过其他月份 ' + skippedMonth + ' 条）' : ''}`);
+          let skipInfo = '';
+          if (skippedMonth > 0 || skippedInvalid > 0) {
+            const parts = [];
+            if (skippedMonth > 0) parts.push('跳过其他月份 ' + skippedMonth + ' 条');
+            if (skippedInvalid > 0) parts.push('无法识别日期 ' + skippedInvalid + ' 条');
+            skipInfo = '（' + parts.join('，') + '）';
+          }
+          ElementPlus.ElMessage.success(`导入成功${typeHint}，${filterMonth}月新增 ${count} 名员工${skipInfo}`);
         } catch (err) {
           ElementPlus.ElMessage.error('导入失败：' + err.message);
         }
