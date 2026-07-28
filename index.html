@@ -77,7 +77,7 @@
           <el-table :data="employees" border stripe style="width:100%">
             <el-table-column prop="name" label="姓名" width="120"></el-table-column>
             <el-table-column prop="gender" label="性别" width="80">
-              <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+              <template #default="{ row }">{{ row.gender === 'male' ? '男' : row.gender === 'female' ? '女' : '' }}</template>
             </el-table-column>
             <el-table-column prop="birthMonth" label="月份" width="80">
               <template #default="{ row }">{{ row.birthMonth }}月</template>
@@ -121,7 +121,7 @@
             <el-table-column type="selection" width="55"></el-table-column>
             <el-table-column prop="name" label="姓名" width="100"></el-table-column>
             <el-table-column prop="gender" label="性别" width="70">
-              <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+              <template #default="{ row }">{{ row.gender === 'male' ? '男' : row.gender === 'female' ? '女' : '' }}</template>
             </el-table-column>
             <el-table-column prop="birthMonth" label="月份" width="70">
               <template #default="{ row }">{{ row.birthMonth }}月</template>
@@ -241,7 +241,7 @@
             <el-table-column type="selection" width="55"></el-table-column>
             <el-table-column prop="name" label="姓名" width="100"></el-table-column>
             <el-table-column prop="gender" label="性别" width="70">
-              <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+              <template #default="{ row }">{{ row.gender === 'male' ? '男' : row.gender === 'female' ? '女' : '' }}</template>
             </el-table-column>
             <el-table-column prop="birthMonth" label="月份" width="70">
               <template #default="{ row }">{{ row.birthMonth }}月</template>
@@ -304,7 +304,7 @@
                 <el-table :data="h.records" border stripe size="small" style="width:100%">
                   <el-table-column prop="name" label="姓名" width="80"></el-table-column>
                   <el-table-column prop="gender" label="性别" width="60">
-                    <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+                    <template #default="{ row }">{{ row.gender === 'male' ? '男' : row.gender === 'female' ? '女' : '' }}</template>
                   </el-table-column>
                   <el-table-column prop="birthMonth" label="月份" width="60">
                     <template #default="{ row }">{{ row.birthMonth }}月</template>
@@ -347,7 +347,7 @@
             <el-table-column type="selection" width="55"></el-table-column>
             <el-table-column prop="name" label="姓名" width="100"></el-table-column>
             <el-table-column prop="gender" label="性别" width="70">
-              <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+              <template #default="{ row }">{{ row.gender === 'male' ? '男' : row.gender === 'female' ? '女' : '' }}</template>
             </el-table-column>
             <el-table-column prop="birthMonth" label="月份" width="70">
               <template #default="{ row }">{{ row.birthMonth }}月</template>
@@ -387,7 +387,7 @@
                 <el-table :data="h.records" border stripe size="small" style="width:100%">
                   <el-table-column prop="name" label="姓名" width="80"></el-table-column>
                   <el-table-column prop="gender" label="性别" width="60">
-                    <template #default="{ row }">{{ row.gender === 'male' ? '男' : '女' }}</template>
+                    <template #default="{ row }">{{ row.gender === 'male' ? '男' : row.gender === 'female' ? '女' : '' }}</template>
                   </el-table-column>
                   <el-table-column prop="birthMonth" label="月份" width="60">
                     <template #default="{ row }">{{ row.birthMonth }}月</template>
@@ -523,6 +523,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="wishTemplates.js?v=21"></script>
-  <script src="app.730fe845.js"></script>
+  <script src="app.b1631884.js"></script>
 </body>
 </html>
