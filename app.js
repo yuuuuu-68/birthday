@@ -1363,7 +1363,7 @@ const app = createApp({
     function exportWishesExcel() {
       const data = employees.value.filter(e => e.wish).map(e => ({
         '姓名': e.name,
-        '性别': e.gender === 'male' ? '男' : '女',
+        '性别': e.gender === 'male' ? '男' : e.gender === 'female' ? '女' : '',
         '月份': e.birthMonth + '月',
         '日期': (e.birthDay || 1) + '日',
         '部门': e.department || '',
@@ -1444,7 +1444,7 @@ const app = createApp({
             '导出贺卡日期': h.exportDate || '-',
             '审核时间': h.reviewTime,
             '姓名': r.name,
-            '性别': r.gender === 'male' ? '男' : '女',
+            '性别': r.gender === 'male' ? '男' : r.gender === 'female' ? '女' : '',
             '月份': r.birthMonth + '月',
             '日期': (r.birthDay || 1) + '日',
             '部门': r.department || '',
