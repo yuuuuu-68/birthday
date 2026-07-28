@@ -426,27 +426,33 @@ const app = createApp({
     function generateWishForEmployee(emp) {
       const season = getSeason(emp.birthMonth);
       const recentWishes = getRecentWishes(2);
+      // 第1级：性别+季节匹配且近2个月未用
       let candidates = wishLibrary.value.filter(w => {
         const genderMatch = w.gender === emp.gender || w.gender === 'all';
         const seasonMatch = w.season === season || w.season === 'all';
         const notRecent = !recentWishes.has(w.content);
         return genderMatch && seasonMatch && notRecent;
       });
+      // 第2级：放宽性别，保留季节+未用
       if (candidates.length === 0) {
-        candidates = wishLibrary.value.filter(w => w.gender === 'all' && w.season === 'all' && !recentWishes.has(w.content));
+        candidates = wishLibrary.value.filter(w =>
+          (w.season === season || w.season === 'all') && !recentWishes.has(w.content)
+        );
       }
-      if (candidates.length === 0) {
-        candidates = wishLibrary.value.filter(w => !recentWishes.has(w.content));
-      }
-      // 如果排除近期文案后无候选，则放宽限制
+      // 第3级：放宽防重复，保留性别+季节（季节优先于防重复，绝不跨季节）
       if (candidates.length === 0) {
         candidates = wishLibrary.value.filter(w => {
           const genderMatch = w.gender === emp.gender || w.gender === 'all';
           const seasonMatch = w.season === season || w.season === 'all';
           return genderMatch && seasonMatch;
         });
-        if (candidates.length === 0) candidates = wishLibrary.value;
       }
+      // 第4级：只保留季节
+      if (candidates.length === 0) {
+        candidates = wishLibrary.value.filter(w => w.season === season || w.season === 'all');
+      }
+      // 最后兜底：全库（文案库里完全没有该季节可用文案时）
+      if (candidates.length === 0) candidates = wishLibrary.value;
       candidates.sort((a, b) => a.usageCount - b.usageCount);
       const topHalf = candidates.slice(0, Math.max(1, Math.ceil(candidates.length / 2)));
       const selected = topHalf[Math.floor(Math.random() * topHalf.length)];
@@ -1361,6 +1367,7 @@ const app = createApp({
         '月份': e.birthMonth + '月',
         '日期': (e.birthDay || 1) + '日',
         '部门': e.department || '',
+        '角色': e.role || '',
         '祝福文案': e.wish,
         '状态': e.wishStatus === 'exported' ? '已导出' : e.wishStatus === 'approved' ? '已审核' : e.wishStatus === 'generated' ? '已生成' : '待审核'
       }));
